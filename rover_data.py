@@ -405,13 +405,23 @@ def build_memory_usage(jetson_snapshot: dict) -> dict:
         "detail": "Jetson uses unified memory, so this payload does not expose separate GPU VRAM usage.",
     }
 
-    jtop_memory = normalize_keys(jetson_snapshot.get("memory", {}))
+    raw_jtop_memory = normalize_keys(jetson_snapshot.get("memory", {}))
+    jtop_memory = raw_jtop_memory if isinstance(raw_jtop_memory, dict) else {}
+
     possible_gpu_memory = first_non_empty(
         jtop_memory.get("gpu"),
         jtop_memory.get("vram"),
         jtop_memory.get("nvmap"),
         jtop_memory.get("iram"),
     )
+
+    if possible_gpu_memory in (None, "", {}, []) and raw_jtop_memory not in (None, "", {}, []):
+        gpu_memory = {
+            "available": True,
+            "value": stringify_value(raw_jtop_memory),
+            "detail": "Raw memory payload reported by jetson-stats",
+        }
+
     if possible_gpu_memory not in (None, "", {}, []):
         gpu_memory = {
             "available": True,
