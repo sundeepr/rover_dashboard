@@ -81,12 +81,6 @@ const logoutButton = document.getElementById("logoutButton");
 const roleBadge = document.getElementById("roleBadge");
 const welcomeText = document.getElementById("welcomeText");
 const adminPanel = document.getElementById("adminPanel");
-const connectionForm = document.getElementById("connectionForm");
-const baseUrlInput = document.getElementById("baseUrlInput");
-const connectionPill = document.getElementById("connectionPill");
-const connectionMessage = document.getElementById("connectionMessage");
-const cpuChartMeta = document.getElementById("cpuChartMeta");
-baseUrlInput.value = state.baseUrl;
 
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -117,15 +111,7 @@ logoutButton.addEventListener("click", () => {
   state.baseUrl = getDefaultBaseUrl();
   state.telemetry = mockTelemetry;
   resetMetricHistories();
-  baseUrlInput.value = state.baseUrl;
   renderSession();
-});
-
-connectionForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  state.baseUrl = baseUrlInput.value.trim();
-  await refreshTelemetry();
-  startTelemetryPolling();
 });
 
 async function refreshTelemetry() {
@@ -137,9 +123,6 @@ async function refreshTelemetry() {
         updatedAt: new Date().toLocaleTimeString(),
       },
     };
-    connectionPill.textContent = "Mock Mode";
-    connectionMessage.textContent =
-      "No live endpoint yet. Showing mock rover telemetry.";
     renderTelemetry();
     return;
   }
@@ -155,8 +138,6 @@ async function refreshTelemetry() {
 
     const telemetry = await response.json();
     state.telemetry = telemetry;
-    connectionPill.textContent = "Live Link";
-    connectionMessage.textContent = `Connected to ${state.baseUrl}/api/telemetry`;
   } catch (error) {
     state.telemetry = {
       ...mockTelemetry,
@@ -165,9 +146,6 @@ async function refreshTelemetry() {
         updatedAt: new Date().toLocaleTimeString(),
       },
     };
-    connectionPill.textContent = "Fallback";
-    connectionMessage.textContent =
-      `Could not reach ${state.baseUrl}/api/telemetry. Falling back to mock data.`;
   }
 
   renderTelemetry();
@@ -225,7 +203,7 @@ async function loginUser(username, password) {
 }
 
 function renderTelemetry() {
-  const { status, devices, odometry, sensors } = state.telemetry;
+  const { status, devices, odometry } = state.telemetry;
 
   setText("cpuUsageValue", status.cpuUsage);
   setText("memoryUsageValue", status.memoryUsage);
@@ -269,20 +247,6 @@ function renderTelemetry() {
     )
     .join("");
 
-  const sensorGrid = document.getElementById("sensorGrid");
-  sensorGrid.innerHTML = sensors
-    .map(
-      (sensor) => `
-        <article class="sensor-card">
-          <h4>${sensor.name}</h4>
-          <div class="sensor-value">${sensor.value}</div>
-          <p>${sensor.detail}</p>
-        </article>
-      `,
-    )
-    .join("");
-
-  renderMemoryUsage(state.telemetry.jetson?.memoryUsage);
   renderDetailedJetsonStats(state.telemetry.jetson?.details);
 }
 
@@ -422,35 +386,6 @@ function parseTemperature(value) {
   }
 
   return parsed;
-}
-
-function renderMemoryUsage(memoryUsage) {
-  const memoryGrid = document.getElementById("memoryGrid");
-  if (!memoryGrid) {
-    return;
-  }
-
-  const ram = memoryUsage?.ram || {
-    percent: "Unavailable",
-    detail: "Unavailable",
-  };
-  const gpu = memoryUsage?.gpu || {
-    value: "Unavailable",
-    detail: "Unavailable",
-  };
-
-  memoryGrid.innerHTML = `
-    <article class="sensor-card">
-      <h4>RAM Memory</h4>
-      <div class="sensor-value">${ram.percent || "Unavailable"}</div>
-      <p>${ram.detail || "Unavailable"}</p>
-    </article>
-    <article class="sensor-card">
-      <h4>GPU Memory</h4>
-      <div class="sensor-value">${gpu.value || "Unavailable"}</div>
-      <p>${gpu.detail || "Unavailable"}</p>
-    </article>
-  `;
 }
 
 function renderDetailedJetsonStats(details) {

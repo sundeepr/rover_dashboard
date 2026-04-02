@@ -60,38 +60,12 @@
           </div>
         </header>
 
-        <section class="grid layout-top">
+        <section class="grid layout-main">
           <article class="panel span-2">
             <div class="section-header">
               <div>
-                <h3>Rover Connection</h3>
-                <p>Set the local API base URL for the Jetson device.</p>
-              </div>
-              <span class="status-pill" id="connectionPill">Mock Mode</span>
-            </div>
-
-            <form id="connectionForm" class="connection-form">
-              <label class="field grow">
-                <span>Base URL</span>
-                <input
-                  id="baseUrlInput"
-                  type="url"
-                  placeholder="http://127.0.0.1:6060"
-                />
-              </label>
-              <button type="submit" class="primary-button">Connect</button>
-            </form>
-
-            <p class="muted" id="connectionMessage">
-              No live endpoint yet. Showing mock rover telemetry.
-            </p>
-          </article>
-
-          <article class="panel">
-            <div class="section-header">
-              <div>
-                <h3>System Health</h3>
-                <p>Snapshot from the most recent telemetry pull.</p>
+                <h3>Live Metrics</h3>
+                <p>Continuous Jetson metrics with inline spark lines.</p>
               </div>
             </div>
 
@@ -130,36 +104,6 @@
               </div>
             </div>
           </article>
-        </section>
-
-        <section class="grid layout-main">
-          <article class="panel span-2 hidden">
-            <div class="section-header">
-              <div>
-                <h3>CPU Telemetry</h3>
-                <p>Live CPU usage trend from the rover backend.</p>
-              </div>
-              <span class="chart-meta" id="cpuChartMeta">Waiting for samples</span>
-            </div>
-            <div class="cpu-chart-card">
-              <svg
-                id="cpuChart"
-                class="cpu-chart"
-                viewBox="0 0 640 220"
-                preserveAspectRatio="none"
-                aria-label="CPU usage graph"
-                role="img"
-              >
-                <path id="cpuChartArea" class="cpu-chart-area"></path>
-                <path id="cpuChartLine" class="cpu-chart-line"></path>
-              </svg>
-              <div class="chart-scale">
-                <span>100%</span>
-                <span>50%</span>
-                <span>0%</span>
-              </div>
-            </div>
-          </article>
 
           <article class="panel">
             <div class="section-header">
@@ -179,26 +123,6 @@
               </div>
             </div>
             <div id="odometryGrid" class="stats-grid compact"></div>
-          </article>
-
-          <article class="panel span-2">
-            <div class="section-header">
-              <div>
-                <h3>Jetson Board</h3>
-                <p>Board identity, JetPack stack, power mode, and fan state.</p>
-              </div>
-            </div>
-            <div id="sensorGrid" class="sensor-grid"></div>
-          </article>
-
-          <article class="panel">
-            <div class="section-header">
-              <div>
-                <h3>Memory Usage</h3>
-                <p>RAM usage and GPU memory status on the Jetson board.</p>
-              </div>
-            </div>
-            <div id="memoryGrid" class="sensor-grid"></div>
           </article>
 
           <article class="panel span-2">
