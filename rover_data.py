@@ -59,7 +59,7 @@ def get_memory_usage() -> str:
 
 
 def get_cpu_temperature() -> str:
-    temperatures = psutil.sensors_temperatures(fahrenheit=False)
+    temperatures = read_psutil_temperatures()
     preferred_groups = ("cpu-thermal", "cpu_thermal", "coretemp", "k10temp")
 
     for group_name in preferred_groups:
@@ -80,7 +80,10 @@ def get_cpu_temperature() -> str:
                 continue
 
             raw_value = (zone / "temp").read_text(encoding="utf-8").strip()
-            return format_temperature(parse_millicelsius(raw_value))
+            parsed_value = parse_millicelsius(raw_value)
+            if parsed_value is None:
+                continue
+            return format_temperature(parsed_value)
         except OSError:
             continue
 
@@ -110,15 +113,30 @@ def format_temperature(value: float) -> str:
     return f"{value:.1f} C"
 
 
-def parse_millicelsius(raw_value: str) -> float:
-    value = float(raw_value)
+def parse_millicelsius(raw_value: str) -> float | None:
+    try:
+        value = float(raw_value)
+    except (TypeError, ValueError):
+        return None
+
     if value > 1000:
         return value / 1000.0
     return value
 
 
 def format_gpu_load(raw_value: str) -> str:
-    value = float(raw_value)
+    try:
+        value = float(raw_value)
+    except (TypeError, ValueError):
+        return "Unavailable"
+
     if value > 100:
         value = value / 10.0
     return f"{value:.1f}%"
+
+
+def read_psutil_temperatures() -> dict:
+    try:
+        return psutil.sensors_temperatures(fahrenheit=False)
+    except (AttributeError, OSError, TypeError, ValueError):
+        return {}
