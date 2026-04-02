@@ -58,10 +58,11 @@ def build_status(updated_at: str, jetson_snapshot: dict | None) -> dict:
 
     if jetson_snapshot:
         stats = jetson_snapshot.get("stats", {})
+        normalized_stats = normalize_keys(stats)
         extracted_cpu = extract_jetson_cpu_usage(stats)
-        extracted_memory = extract_jetson_memory_usage(stats)
+        extracted_memory = extract_jetson_memory_usage(normalized_stats)
         extracted_temp = extract_jetson_cpu_temp(jetson_snapshot)
-        extracted_gpu = extract_jetson_gpu_usage(stats)
+        extracted_gpu = extract_jetson_gpu_usage(normalized_stats)
 
         cpu_usage = format_percent(extracted_cpu) or cpu_usage
         memory_usage = format_percent(extracted_memory) or memory_usage
@@ -89,7 +90,8 @@ def build_sensor_cards(jetson_snapshot: dict | None) -> list[dict]:
         ]
 
     board = jetson_snapshot.get("board", {})
-    info = flatten_text_fields(board)
+    info = normalize_keys(flatten_text_fields(board))
+    stats = normalize_keys(jetson_snapshot.get("stats", {}))
     cards = []
 
     model = first_non_empty(
@@ -107,18 +109,25 @@ def build_sensor_cards(jetson_snapshot: dict | None) -> list[dict]:
     if software:
         cards.append({"name": "JetPack", "value": software, "detail": "Software stack"})
 
-    power_mode = first_non_empty(
-        stringify_value(jetson_snapshot.get("nvpmodel")),
-        info.get("hardware.power"),
-    )
+    power_mode = first_non_empty(stringify_nvpmodel(jetson_snapshot.get("nvpmodel")), info.get("hardware.power"))
     if power_mode:
         cards.append({"name": "Power Mode", "value": power_mode, "detail": "Current Jetson power profile"})
 
-    fan_state = stringify_value(jetson_snapshot.get("fan"))
+    fan_state = stringify_fan(jetson_snapshot.get("fan"))
     if fan_state and fan_state != "Unavailable":
         cards.append({"name": "Fan", "value": fan_state, "detail": "Fan telemetry from jetson-stats"})
 
-    engines = stringify_value(jetson_snapshot.get("engine"))
+    total_power = parse_numeric(stats.get("power tot"))
+    if total_power is not None:
+        cards.append(
+            {
+                "name": "Power",
+                "value": f"{total_power:.0f} mW",
+                "detail": "Total board power draw",
+            }
+        )
+
+    engines = stringify_engines(jetson_snapshot.get("engine"))
     if engines and engines != "Unavailable":
         cards.append({"name": "Engines", "value": trim_text(engines, 24), "detail": "Jetson accelerator activity"})
 
@@ -150,6 +159,12 @@ def build_jetson_payload(jetson_snapshot: dict | None) -> dict:
         "engine": jetson_snapshot.get("engine"),
         "nvpmodel": jetson_snapshot.get("nvpmodel"),
         "jetsonClocks": jetson_snapshot.get("jetson_clocks"),
+        "summary": {
+            "model": extract_board_model(jetson_snapshot.get("board", {})),
+            "jetpack": extract_software_stack(jetson_snapshot.get("board", {})),
+            "fan": stringify_fan(jetson_snapshot.get("fan")),
+            "powerMode": stringify_nvpmodel(jetson_snapshot.get("nvpmodel")),
+        },
     }
 
 
@@ -265,37 +280,43 @@ def extract_jetson_cpu_usage(stats: dict) -> float | None:
 
 
 def extract_jetson_memory_usage(stats: dict) -> float | None:
-    ram_block = first_non_empty(stats.get("RAM"), stats.get("ram"), stats.get("MEM"), stats.get("mem"))
-    return coerce_percent(ram_block)
+    ram_block = first_non_empty(stats.get("ram"), stats.get("mem"))
+    percent = coerce_percent(ram_block)
+    if percent is None and isinstance(ram_block, (int, float)):
+        return float(ram_block) * 100.0
+    return percent
 
 
 def extract_jetson_cpu_temp(jetson_snapshot: dict) -> float | None:
-    stats = jetson_snapshot.get("stats", {})
+    stats = normalize_keys(jetson_snapshot.get("stats", {}))
+
+    direct_cpu_temp = coerce_temperature(stats.get("temp cpu"))
+    if direct_cpu_temp is not None and direct_cpu_temp > -200:
+        return direct_cpu_temp
 
     for key, value in stats.items():
         key_name = str(key).lower()
         if "temp" in key_name and "cpu" in key_name:
             parsed = coerce_temperature(value)
-            if parsed is not None:
+            if parsed is not None and parsed > -200:
                 return parsed
 
     board = jetson_snapshot.get("board", {})
-    flattened = flatten_text_fields(board)
+    flattened = normalize_keys(flatten_text_fields(board))
     for key, value in flattened.items():
         key_name = key.lower()
         if "temp" in key_name and "cpu" in key_name:
             parsed = coerce_temperature(value)
-            if parsed is not None:
+            if parsed is not None and parsed > -200:
                 return parsed
 
     return None
 
 
 def extract_jetson_gpu_usage(stats: dict) -> float | None:
-    gpu_block = first_non_empty(stats.get("GPU"), stats.get("gpu"))
-    averaged_gpu = average_numeric_values(gpu_block)
-    if averaged_gpu is not None:
-        return averaged_gpu
+    direct_gpu = coerce_percent(stats.get("gpu"))
+    if direct_gpu is not None:
+        return direct_gpu
 
     gpu_values = [
         coerce_percent(value)
@@ -322,6 +343,14 @@ def average_numeric_values(value: Any) -> float | None:
         return None
 
     return sum(numeric_values) / len(numeric_values)
+
+
+def normalize_keys(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(key).strip().lower(): normalize_keys(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [normalize_keys(item) for item in value]
+    return value
 
 
 def coerce_percent(value: Any) -> float | None:
@@ -396,6 +425,8 @@ def format_temperature(value: float) -> str:
 def format_percent(value: float | None) -> str | None:
     if value is None:
         return None
+    if 0 <= value <= 1:
+        value *= 100.0
     return f"{max(0.0, min(value, 100.0)):.1f}%"
 
 
@@ -503,6 +534,48 @@ def stringify_value(value: Any) -> str:
     return str(value)
 
 
+def stringify_fan(value: Any) -> str:
+    if isinstance(value, dict):
+        fan_name, fan_payload = next(iter(value.items()), (None, None))
+        if isinstance(fan_payload, dict):
+            rpm = first_list_item(fan_payload.get("rpm"))
+            profile = fan_payload.get("profile")
+            speed = first_list_item(fan_payload.get("speed"))
+            parts = []
+            if rpm is not None:
+                parts.append(f"{int(float(rpm))} RPM")
+            if speed is not None:
+                parts.append(f"{float(speed):.0f}%")
+            if profile:
+                parts.append(str(profile))
+            if fan_name and parts:
+                return f"{fan_name}: {' / '.join(parts)}"
+    return stringify_value(value)
+
+
+def stringify_nvpmodel(value: Any) -> str:
+    if isinstance(value, dict):
+        return first_non_empty(
+            stringify_value(value.get("name")),
+            stringify_value(value.get("model")),
+            stringify_value(value.get("id")),
+        )
+    return stringify_value(value)
+
+
+def stringify_engines(value: Any) -> str:
+    if isinstance(value, dict):
+        active = []
+        for engine_name, payload in value.items():
+            text = stringify_value(payload)
+            if "online:true" in text.lower() or "on" == text.lower():
+                active.append(str(engine_name))
+        if active:
+            return ", ".join(active)
+        return "Idle"
+    return stringify_value(value)
+
+
 def trim_text(value: str, limit: int) -> str:
     if len(value) <= limit:
         return value
@@ -531,3 +604,20 @@ def parse_numeric(value: Any) -> float | None:
         return float(match.group(0))
     except ValueError:
         return None
+
+
+def first_list_item(value: Any) -> Any:
+    if isinstance(value, (list, tuple)) and value:
+        return value[0]
+    return value
+
+
+def extract_board_model(board: dict) -> str:
+    info = normalize_keys(flatten_text_fields(board))
+    return first_non_empty(info.get("hardware.model"), info.get("hardware.module")) or "Unavailable"
+
+
+def extract_software_stack(board: dict) -> str:
+    info = normalize_keys(flatten_text_fields(board))
+    parts = [value for value in [info.get("hardware.jetpack"), info.get("hardware.l4t")] if value]
+    return " / ".join(parts) if parts else "Unavailable"

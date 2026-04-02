@@ -95,29 +95,45 @@
               </div>
             </div>
 
-            <div class="stats-grid">
-              <div class="stat">
+            <div class="metrics-grid" id="metricsGrid">
+              <div class="metric-card">
                 <span>CPU Usage</span>
                 <strong id="cpuUsageValue">--</strong>
+                <svg class="metric-chart" viewBox="0 0 240 72" preserveAspectRatio="none">
+                  <path id="cpuUsageArea" class="metric-chart-area"></path>
+                  <path id="cpuUsageLine" class="metric-chart-line"></path>
+                </svg>
               </div>
-              <div class="stat">
+              <div class="metric-card">
                 <span>Memory Usage</span>
                 <strong id="memoryUsageValue">--</strong>
+                <svg class="metric-chart" viewBox="0 0 240 72" preserveAspectRatio="none">
+                  <path id="memoryUsageArea" class="metric-chart-area"></path>
+                  <path id="memoryUsageLine" class="metric-chart-line"></path>
+                </svg>
               </div>
-              <div class="stat">
+              <div class="metric-card">
                 <span>CPU Temperature</span>
                 <strong id="cpuTempValue">--</strong>
+                <svg class="metric-chart" viewBox="0 0 240 72" preserveAspectRatio="none">
+                  <path id="cpuTempArea" class="metric-chart-area"></path>
+                  <path id="cpuTempLine" class="metric-chart-line"></path>
+                </svg>
               </div>
-              <div class="stat">
+              <div class="metric-card">
                 <span>GPU Usage</span>
                 <strong id="gpuUsageValue">--</strong>
+                <svg class="metric-chart" viewBox="0 0 240 72" preserveAspectRatio="none">
+                  <path id="gpuUsageArea" class="metric-chart-area"></path>
+                  <path id="gpuUsageLine" class="metric-chart-line"></path>
+                </svg>
               </div>
             </div>
           </article>
         </section>
 
         <section class="grid layout-main">
-          <article class="panel span-2">
+          <article class="panel span-2 hidden">
             <div class="section-header">
               <div>
                 <h3>CPU Telemetry</h3>
@@ -168,8 +184,8 @@
           <article class="panel span-2">
             <div class="section-header">
               <div>
-                <h3>Sensor Streams</h3>
-                <p>Early placeholder for IMU, GPS, lidar, and environment data.</p>
+                <h3>Jetson Board</h3>
+                <p>Board identity, JetPack stack, power mode, and fan state.</p>
               </div>
             </div>
             <div id="sensorGrid" class="sensor-grid"></div>

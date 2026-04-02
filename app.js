@@ -41,14 +41,19 @@ const mockTelemetry = {
   ],
 };
 
-const CPU_HISTORY_LIMIT = 30;
+const HISTORY_LIMIT = 30;
 const TELEMETRY_POLL_MS = 2000;
 
 const state = {
   currentUser: null,
   baseUrl: getDefaultBaseUrl(),
   telemetry: mockTelemetry,
-  cpuHistory: [],
+  histories: {
+    cpuUsage: [],
+    memoryUsage: [],
+    cpuTemp: [],
+    gpuUsage: [],
+  },
   pollTimer: null,
 };
 
@@ -95,7 +100,7 @@ logoutButton.addEventListener("click", () => {
   state.currentUser = null;
   state.baseUrl = getDefaultBaseUrl();
   state.telemetry = mockTelemetry;
-  state.cpuHistory = [];
+  resetMetricHistories();
   baseUrlInput.value = state.baseUrl;
   renderSession();
 });
@@ -210,8 +215,14 @@ function renderTelemetry() {
   setText("memoryUsageValue", status.memoryUsage);
   setText("cpuTempValue", status.cpuTemp);
   setText("gpuUsageValue", status.gpuUsage);
-  updateCpuHistory(status.cpuUsage, status.updatedAt);
-  renderCpuChart();
+  updateMetricHistory("cpuUsage", status.cpuUsage, status.updatedAt);
+  updateMetricHistory("memoryUsage", status.memoryUsage, status.updatedAt);
+  updateMetricHistory("cpuTemp", status.cpuTemp, status.updatedAt);
+  updateMetricHistory("gpuUsage", status.gpuUsage, status.updatedAt);
+  renderMetricChart("cpuUsage");
+  renderMetricChart("memoryUsage");
+  renderMetricChart("cpuTemp");
+  renderMetricChart("gpuUsage");
 
   const devicesList = document.getElementById("devicesList");
   devicesList.innerHTML = devices
@@ -293,48 +304,63 @@ function stopTelemetryPolling() {
   }
 }
 
-function updateCpuHistory(cpuUsage, updatedAt) {
-  const value = parsePercent(cpuUsage);
+function resetMetricHistories() {
+  state.histories = {
+    cpuUsage: [],
+    memoryUsage: [],
+    cpuTemp: [],
+    gpuUsage: [],
+  };
+}
+
+function updateMetricHistory(metricKey, rawValue, updatedAt) {
+  const value = metricKey === "cpuTemp" ? parseTemperature(rawValue) : parsePercent(rawValue);
   if (value === null) {
     return;
   }
 
-  const latestPoint = state.cpuHistory.at(-1);
+  const history = state.histories[metricKey];
+  const latestPoint = history.at(-1);
   if (latestPoint && latestPoint.label === updatedAt && latestPoint.value === value) {
     return;
   }
 
-  state.cpuHistory.push({
+  history.push({
     value,
     label: updatedAt || new Date().toLocaleTimeString(),
   });
 
-  if (state.cpuHistory.length > CPU_HISTORY_LIMIT) {
-    state.cpuHistory = state.cpuHistory.slice(-CPU_HISTORY_LIMIT);
+  if (history.length > HISTORY_LIMIT) {
+    state.histories[metricKey] = history.slice(-HISTORY_LIMIT);
   }
 }
 
-function renderCpuChart() {
-  const line = document.getElementById("cpuChartLine");
-  const area = document.getElementById("cpuChartArea");
+function renderMetricChart(metricKey) {
+  const line = document.getElementById(`${metricKey}Line`);
+  const area = document.getElementById(`${metricKey}Area`);
+  const history = state.histories[metricKey];
 
-  if (state.cpuHistory.length < 2) {
-    line.setAttribute("d", "");
-    area.setAttribute("d", "");
-    cpuChartMeta.textContent = "Collecting CPU samples...";
+  if (!line || !area) {
     return;
   }
 
-  const width = 640;
-  const height = 220;
-  const bottom = height - 16;
-  const top = 16;
-  const usableHeight = bottom - top;
-  const stepX = width / Math.max(state.cpuHistory.length - 1, 1);
+  if (history.length < 2) {
+    line.setAttribute("d", "");
+    area.setAttribute("d", "");
+    return;
+  }
 
-  const points = state.cpuHistory.map((point, index) => {
+  const width = 240;
+  const height = 72;
+  const bottom = height - 6;
+  const top = 6;
+  const usableHeight = bottom - top;
+  const stepX = width / Math.max(history.length - 1, 1);
+  const maxValue = metricKey === "cpuTemp" ? Math.max(...history.map((point) => point.value), 70) : 100;
+
+  const points = history.map((point, index) => {
     const x = index * stepX;
-    const y = bottom - (point.value / 100) * usableHeight;
+    const y = bottom - (point.value / maxValue) * usableHeight;
     return { x, y };
   });
 
@@ -351,9 +377,6 @@ function renderCpuChart() {
 
   line.setAttribute("d", linePath);
   area.setAttribute("d", areaPath);
-
-  const latest = state.cpuHistory.at(-1);
-  cpuChartMeta.textContent = `${state.cpuHistory.length} samples • latest ${latest.value.toFixed(1)}% at ${latest.label}`;
 }
 
 function parsePercent(value) {
@@ -367,4 +390,17 @@ function parsePercent(value) {
   }
 
   return Math.max(0, Math.min(parsed, 100));
+}
+
+function parseTemperature(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const parsed = Number.parseFloat(value.replace("C", "").trim());
+  if (Number.isNaN(parsed) || parsed < -200) {
+    return null;
+  }
+
+  return parsed;
 }
