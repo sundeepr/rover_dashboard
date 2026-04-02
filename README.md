@@ -8,6 +8,7 @@ Small first iteration of a web-based rover dashboard with a `Flask` backend and 
 - Dashboard cards for rover connection, connected devices, odometry, and sensors
 - Admin-only actions panel
 - `Flask` API for login, health, and telemetry
+- Jetson-aware telemetry via `jetson-stats` / `jtop` when available
 - Configurable local rover endpoint
 - Automatic fallback to mock telemetry while the Jetson API is not ready
 
@@ -23,6 +24,13 @@ Install the backend dependency:
 ```bash
 cd /home/sundeep/workspace/rover_dashboard
 pip install -r requirements.txt
+```
+
+On a Jetson board, `jetson-stats` is the preferred telemetry source for board-specific metrics.
+If needed, install it with elevated privileges as recommended by the project:
+
+```bash
+sudo pip3 install -U jetson-stats
 ```
 
 Start the backend:
@@ -59,10 +67,12 @@ Current response:
 ```json
 {
   "status": {
-    "battery": "82%",
-    "cpuTemp": "61 C",
-    "mode": "Autonomous",
-    "updatedAt": "14:32:11"
+    "cpuUsage": "23.1%",
+    "memoryUsage": "44.2%",
+    "cpuTemp": "58.0 C",
+    "gpuUsage": "31.0%",
+    "updatedAt": "14:32:11",
+    "source": "jtop"
   },
   "devices": [
     { "name": "Stereo Camera", "port": "/dev/video0", "status": "online" },
@@ -77,14 +87,20 @@ Current response:
     "frame": "odom"
   },
   "sensors": [
-    { "name": "IMU", "value": "0.03 g", "detail": "Stable" },
-    { "name": "GPS", "value": "16 sats", "detail": "RTK fixed" }
-  ]
+    { "name": "Board", "value": "Jetson Orin Nano", "detail": "Detected by jetson-stats" },
+    { "name": "JetPack", "value": "6.x / 36.x", "detail": "Software stack" }
+  ],
+  "jetson": {
+    "available": true,
+    "source": "jtop",
+    "stats": {},
+    "board": {}
+  }
 }
 ```
 
 ## Next good step
 
-The system health card now reads CPU usage, memory usage, CPU temperature, and GPU usage from Python. On Jetson, GPU usage is read from common sysfs paths when available.
+The backend now prefers `jetson-stats` for Jetson-specific monitoring and falls back to generic Linux metrics when `jtop` is unavailable.
 
-Next, we can replace the remaining mock values in `rover_data.py` with real Jetson device scans, ROS topic data, or serial/CAN status.
+Next, we can use the new `jetson` payload in the frontend to render board details like JetPack, power mode, fan state, and accelerator activity the way `jtop` does.
