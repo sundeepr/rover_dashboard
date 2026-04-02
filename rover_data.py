@@ -22,6 +22,32 @@ GPU_LOAD_PATHS = (
 THERMAL_ZONE_ROOT = Path("/sys/class/thermal")
 
 _JETSON_CLIENT = None
+DISPLAY_STAT_KEYS = (
+    "APE",
+    "CPU1",
+    "CPU2",
+    "CPU3",
+    "CPU4",
+    "CPU5",
+    "CPU6",
+    "EMC",
+    "Fan pwmfan0",
+    "GPU",
+    "Power TOT",
+    "Power VDD_CPU_GPU_CV",
+    "Power VDD_SOC",
+    "RAM",
+    "SWAP",
+    "Temp cpu",
+    "Temp gpu",
+    "Temp soc0",
+    "Temp soc1",
+    "Temp soc2",
+    "Temp tj",
+    "nvp model",
+    "time",
+    "uptime",
+)
 
 
 def get_mock_telemetry() -> dict:
@@ -155,6 +181,7 @@ def build_jetson_payload(jetson_snapshot: dict | None) -> dict:
         "source": "jtop",
         "stats": jetson_snapshot.get("stats", {}),
         "board": jetson_snapshot.get("board", {}),
+        "memory": jetson_snapshot.get("memory", {}),
         "fan": jetson_snapshot.get("fan"),
         "engine": jetson_snapshot.get("engine"),
         "nvpmodel": jetson_snapshot.get("nvpmodel"),
@@ -165,6 +192,8 @@ def build_jetson_payload(jetson_snapshot: dict | None) -> dict:
             "fan": stringify_fan(jetson_snapshot.get("fan")),
             "powerMode": stringify_nvpmodel(jetson_snapshot.get("nvpmodel")),
         },
+        "details": build_detailed_stats(jetson_snapshot.get("stats", {})),
+        "memoryUsage": build_memory_usage(jetson_snapshot),
     }
 
 
@@ -185,6 +214,7 @@ def read_jetson_snapshot() -> dict | None:
         return {
             "stats": stats,
             "board": board,
+            "memory": sanitize_for_json(safe_getattr(_JETSON_CLIENT, "memory", {})),
             "fan": sanitize_for_json(safe_getattr(_JETSON_CLIENT, "fan", {})),
             "engine": sanitize_for_json(safe_getattr(_JETSON_CLIENT, "engine", {})),
             "nvpmodel": sanitize_for_json(safe_getattr(_JETSON_CLIENT, "nvpmodel", {})),
@@ -345,12 +375,88 @@ def average_numeric_values(value: Any) -> float | None:
     return sum(numeric_values) / len(numeric_values)
 
 
+def build_detailed_stats(stats: dict) -> list[dict]:
+    details = []
+
+    for key in DISPLAY_STAT_KEYS:
+        if key in stats:
+            details.append(
+                {
+                    "name": key,
+                    "value": format_detail_value(key, stats.get(key)),
+                }
+            )
+
+    return details
+
+
+def build_memory_usage(jetson_snapshot: dict) -> dict:
+    memory = psutil.virtual_memory()
+    ram = {
+        "percent": f"{memory.percent:.1f}%",
+        "used": format_bytes(memory.used),
+        "total": format_bytes(memory.total),
+        "detail": f"{format_bytes(memory.used)} / {format_bytes(memory.total)}",
+    }
+
+    gpu_memory = {
+        "available": False,
+        "value": "Shared with system RAM",
+        "detail": "Jetson uses unified memory, so this payload does not expose separate GPU VRAM usage.",
+    }
+
+    jtop_memory = normalize_keys(jetson_snapshot.get("memory", {}))
+    possible_gpu_memory = first_non_empty(
+        jtop_memory.get("gpu"),
+        jtop_memory.get("vram"),
+        jtop_memory.get("nvmap"),
+        jtop_memory.get("iram"),
+    )
+    if possible_gpu_memory not in (None, "", {}, []):
+        gpu_memory = {
+            "available": True,
+            "value": stringify_value(possible_gpu_memory),
+            "detail": "Reported by jetson-stats",
+        }
+
+    return {
+        "ram": ram,
+        "gpu": gpu_memory,
+    }
+
+
 def normalize_keys(value: Any) -> Any:
     if isinstance(value, dict):
         return {str(key).strip().lower(): normalize_keys(item) for key, item in value.items()}
     if isinstance(value, list):
         return [normalize_keys(item) for item in value]
     return value
+
+
+def format_detail_value(key: str, value: Any) -> str:
+    key_name = key.lower()
+
+    if key_name == "ram":
+        percent = coerce_percent(value)
+        if percent is not None:
+            return f"{percent * 100.0:.1f}%" if 0 <= percent <= 1 else f"{percent:.1f}%"
+
+    if key_name.startswith("temp "):
+        parsed = coerce_temperature(value)
+        if parsed is not None and parsed > -200:
+            return format_temperature(parsed)
+
+    if key_name.startswith("power "):
+        parsed = parse_numeric(value)
+        if parsed is not None:
+            return f"{parsed:.0f} mW"
+
+    if key_name.startswith("cpu") or key_name in {"gpu", "emc", "swap", "fan pwmfan0"}:
+        percent = coerce_percent(value)
+        if percent is not None:
+            return f"{percent * 100.0:.1f}%" if 0 <= percent <= 1 else f"{percent:.1f}%"
+
+    return stringify_value(value)
 
 
 def coerce_percent(value: Any) -> float | None:
@@ -604,6 +710,16 @@ def parse_numeric(value: Any) -> float | None:
         return float(match.group(0))
     except ValueError:
         return None
+
+
+def format_bytes(value: float) -> str:
+    units = ("B", "KB", "MB", "GB", "TB")
+    size = float(value)
+    unit_index = 0
+    while size >= 1024 and unit_index < len(units) - 1:
+        size /= 1024.0
+        unit_index += 1
+    return f"{size:.1f} {units[unit_index]}"
 
 
 def first_list_item(value: Any) -> Any:

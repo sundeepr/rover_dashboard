@@ -39,6 +39,22 @@ const mockTelemetry = {
     { name: "Lidar", value: "24.6 m", detail: "Front clearance" },
     { name: "Ambient", value: "29.4 C", detail: "Board enclosure" },
   ],
+  jetson: {
+    memoryUsage: {
+      ram: {
+        percent: "42.5%",
+        used: "3.4 GB",
+        total: "8.0 GB",
+        detail: "3.4 GB / 8.0 GB",
+      },
+      gpu: {
+        available: false,
+        value: "Shared with system RAM",
+        detail: "Jetson uses unified memory.",
+      },
+    },
+    details: [],
+  },
 };
 
 const HISTORY_LIMIT = 30;
@@ -265,6 +281,9 @@ function renderTelemetry() {
       `,
     )
     .join("");
+
+  renderMemoryUsage(state.telemetry.jetson?.memoryUsage);
+  renderDetailedJetsonStats(state.telemetry.jetson?.details);
 }
 
 function setText(id, value) {
@@ -403,4 +422,62 @@ function parseTemperature(value) {
   }
 
   return parsed;
+}
+
+function renderMemoryUsage(memoryUsage) {
+  const memoryGrid = document.getElementById("memoryGrid");
+  if (!memoryGrid) {
+    return;
+  }
+
+  const ram = memoryUsage?.ram || {
+    percent: "Unavailable",
+    detail: "Unavailable",
+  };
+  const gpu = memoryUsage?.gpu || {
+    value: "Unavailable",
+    detail: "Unavailable",
+  };
+
+  memoryGrid.innerHTML = `
+    <article class="sensor-card">
+      <h4>RAM Memory</h4>
+      <div class="sensor-value">${ram.percent || "Unavailable"}</div>
+      <p>${ram.detail || "Unavailable"}</p>
+    </article>
+    <article class="sensor-card">
+      <h4>GPU Memory</h4>
+      <div class="sensor-value">${gpu.value || "Unavailable"}</div>
+      <p>${gpu.detail || "Unavailable"}</p>
+    </article>
+  `;
+}
+
+function renderDetailedJetsonStats(details) {
+  const statsGrid = document.getElementById("jetsonStatsGrid");
+  if (!statsGrid) {
+    return;
+  }
+
+  const items = Array.isArray(details) ? details : [];
+  if (!items.length) {
+    statsGrid.innerHTML = `
+      <article class="detail-stat">
+        <span>Jetson Stats</span>
+        <strong>Unavailable</strong>
+      </article>
+    `;
+    return;
+  }
+
+  statsGrid.innerHTML = items
+    .map(
+      (item) => `
+        <article class="detail-stat">
+          <span>${item.name}</span>
+          <strong>${item.value}</strong>
+        </article>
+      `,
+    )
+    .join("");
 }

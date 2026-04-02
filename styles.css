@@ -335,9 +335,14 @@ button:hover {
 
 .data-list,
 .sensor-grid,
-.admin-actions {
+.admin-actions,
+.jetson-stats-grid {
   display: grid;
   gap: 14px;
+}
+
+.jetson-stats-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .cpu-chart-card {
@@ -395,6 +400,26 @@ button:hover {
   padding: 16px;
 }
 
+.detail-stat {
+  background: rgba(5, 13, 25, 0.6);
+  border: 1px solid rgba(157, 180, 217, 0.1);
+  border-radius: 18px;
+  padding: 14px 16px;
+}
+
+.detail-stat span {
+  display: block;
+  color: var(--muted);
+  margin-bottom: 8px;
+  font-size: 0.88rem;
+}
+
+.detail-stat strong {
+  display: block;
+  font-size: 1.12rem;
+  word-break: break-word;
+}
+
 .list-row {
   display: flex;
   justify-content: space-between;
@@ -444,7 +469,8 @@ button:hover {
 
   .admin-actions,
   .stats-grid.compact,
-  .metrics-grid {
+  .metrics-grid,
+  .jetson-stats-grid {
     grid-template-columns: 1fr;
   }
 }
