@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rover Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <section class="panel auth-panel" id="authPanel">
+        <form id="loginForm" class="auth-form">
+          <label class="field">
+            <span>Username</span>
+            <input
+              id="username"
+              name="username"
+              type="text"
+              autocomplete="username"
+              placeholder="admin or operator"
+              required
+            />
+          </label>
+
+          <label class="field">
+            <span>Password</span>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              placeholder="Enter password"
+              required
+            />
+          </label>
+
+          <button type="submit" class="primary-button">Enter Dashboard</button>
+        </form>
+
+        <p id="authMessage" class="message" aria-live="polite"></p>
+      </section>
+
+      <main class="dashboard hidden" id="dashboard">
+        <header class="hero">
+          <div>
+            <div class="eyebrow">Mission Status</div>
+            <h2>Rover Telemetry</h2>
+            <p id="welcomeText" class="hero-copy"></p>
+          </div>
+
+          <div class="hero-actions">
+            <span class="badge" id="roleBadge"></span>
+            <button id="logoutButton" class="secondary-button">Log Out</button>
+          </div>
+        </header>
+
+        <section class="grid layout-top">
+          <article class="panel span-2">
+            <div class="section-header">
+              <div>
+                <h3>Rover Connection</h3>
+                <p>Set the local API base URL for the Jetson device.</p>
+              </div>
+              <span class="status-pill" id="connectionPill">Mock Mode</span>
+            </div>
+
+            <form id="connectionForm" class="connection-form">
+              <label class="field grow">
+                <span>Base URL</span>
+                <input
+                  id="baseUrlInput"
+                  type="url"
+                  placeholder="http://127.0.0.1:6060"
+                />
+              </label>
+              <button type="submit" class="primary-button">Connect</button>
+            </form>
+
+            <p class="muted" id="connectionMessage">
+              No live endpoint yet. Showing mock rover telemetry.
+            </p>
+          </article>
+
+          <article class="panel">
+            <div class="section-header">
+              <div>
+                <h3>System Health</h3>
+                <p>Snapshot from the most recent telemetry pull.</p>
+              </div>
+            </div>
+
+            <div class="stats-grid">
+              <div class="stat">
+                <span>Battery</span>
+                <strong id="batteryValue">--</strong>
+              </div>
+              <div class="stat">
+                <span>CPU Temp</span>
+                <strong id="cpuTempValue">--</strong>
+              </div>
+              <div class="stat">
+                <span>Mode</span>
+                <strong id="modeValue">--</strong>
+              </div>
+              <div class="stat">
+                <span>Updated</span>
+                <strong id="updatedAtValue">--</strong>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section class="grid layout-main">
+          <article class="panel">
+            <div class="section-header">
+              <div>
+                <h3>Connected Devices</h3>
+                <p>USB, cameras, radio, and onboard modules.</p>
+              </div>
+            </div>
+            <ul id="devicesList" class="data-list"></ul>
+          </article>
+
+          <article class="panel">
+            <div class="section-header">
+              <div>
+                <h3>Odometry</h3>
+                <p>Position, heading, and current speed.</p>
+              </div>
+            </div>
+            <div id="odometryGrid" class="stats-grid compact"></div>
+          </article>
+
+          <article class="panel span-2">
+            <div class="section-header">
+              <div>
+                <h3>Sensor Streams</h3>
+                <p>Early placeholder for IMU, GPS, lidar, and environment data.</p>
+              </div>
+            </div>
+            <div id="sensorGrid" class="sensor-grid"></div>
+          </article>
+
+          <article class="panel admin-panel hidden" id="adminPanel">
+            <div class="section-header">
+              <div>
+                <h3>Admin Actions</h3>
+                <p>Visible only for admin users in this first iteration.</p>
+              </div>
+            </div>
+            <div class="admin-actions">
+              <button class="secondary-button" type="button">Restart Telemetry</button>
+              <button class="secondary-button" type="button">Refresh Device Scan</button>
+              <button class="secondary-button" type="button">Export Snapshot</button>
+            </div>
+            <p class="muted">
+              These buttons are UI placeholders for the next backend step.
+            </p>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
