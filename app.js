@@ -13,9 +13,10 @@ const demoUsers = {
 
 const mockTelemetry = {
   status: {
-    battery: "86%",
+    cpuUsage: "18.2%",
+    memoryUsage: "42.5%",
     cpuTemp: "58 C",
-    mode: "Teleop Ready",
+    gpuUsage: "21.0%",
     updatedAt: new Date().toLocaleTimeString(),
   },
   devices: [
@@ -195,10 +196,10 @@ async function loginUser(username, password) {
 function renderTelemetry() {
   const { status, devices, odometry, sensors } = state.telemetry;
 
-  setText("batteryValue", status.battery);
+  setText("cpuUsageValue", status.cpuUsage);
+  setText("memoryUsageValue", status.memoryUsage);
   setText("cpuTempValue", status.cpuTemp);
-  setText("modeValue", status.mode);
-  setText("updatedAtValue", status.updatedAt);
+  setText("gpuUsageValue", status.gpuUsage);
 
   const devicesList = document.getElementById("devicesList");
   devicesList.innerHTML = devices

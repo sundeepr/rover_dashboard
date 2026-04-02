@@ -85,4 +85,6 @@ Current response:
 
 ## Next good step
 
-Replace the mock values in `rover_data.py` with real Jetson hardware reads, ROS topic data, or serial/CAN device status.
+The system health card now reads CPU usage, memory usage, CPU temperature, and GPU usage from Python. On Jetson, GPU usage is read from common sysfs paths when available.
+
+Next, we can replace the remaining mock values in `rover_data.py` with real Jetson device scans, ROS topic data, or serial/CAN status.
