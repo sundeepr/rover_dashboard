@@ -41,10 +41,15 @@ const mockTelemetry = {
   ],
 };
 
+const CPU_HISTORY_LIMIT = 30;
+const TELEMETRY_POLL_MS = 2000;
+
 const state = {
   currentUser: null,
   baseUrl: getDefaultBaseUrl(),
   telemetry: mockTelemetry,
+  cpuHistory: [],
+  pollTimer: null,
 };
 
 const authPanel = document.getElementById("authPanel");
@@ -59,6 +64,7 @@ const connectionForm = document.getElementById("connectionForm");
 const baseUrlInput = document.getElementById("baseUrlInput");
 const connectionPill = document.getElementById("connectionPill");
 const connectionMessage = document.getElementById("connectionMessage");
+const cpuChartMeta = document.getElementById("cpuChartMeta");
 baseUrlInput.value = state.baseUrl;
 
 loginForm.addEventListener("submit", async (event) => {
@@ -81,12 +87,15 @@ loginForm.addEventListener("submit", async (event) => {
   loginForm.reset();
   renderSession();
   await refreshTelemetry();
+  startTelemetryPolling();
 });
 
 logoutButton.addEventListener("click", () => {
+  stopTelemetryPolling();
   state.currentUser = null;
   state.baseUrl = getDefaultBaseUrl();
   state.telemetry = mockTelemetry;
+  state.cpuHistory = [];
   baseUrlInput.value = state.baseUrl;
   renderSession();
 });
@@ -95,6 +104,7 @@ connectionForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   state.baseUrl = baseUrlInput.value.trim();
   await refreshTelemetry();
+  startTelemetryPolling();
 });
 
 async function refreshTelemetry() {
@@ -200,6 +210,8 @@ function renderTelemetry() {
   setText("memoryUsageValue", status.memoryUsage);
   setText("cpuTempValue", status.cpuTemp);
   setText("gpuUsageValue", status.gpuUsage);
+  updateCpuHistory(status.cpuUsage, status.updatedAt);
+  renderCpuChart();
 
   const devicesList = document.getElementById("devicesList");
   devicesList.innerHTML = devices
@@ -260,4 +272,99 @@ function getDefaultBaseUrl() {
   }
 
   return "http://127.0.0.1:6060";
+}
+
+function startTelemetryPolling() {
+  stopTelemetryPolling();
+
+  if (!state.currentUser) {
+    return;
+  }
+
+  state.pollTimer = window.setInterval(() => {
+    refreshTelemetry();
+  }, TELEMETRY_POLL_MS);
+}
+
+function stopTelemetryPolling() {
+  if (state.pollTimer) {
+    window.clearInterval(state.pollTimer);
+    state.pollTimer = null;
+  }
+}
+
+function updateCpuHistory(cpuUsage, updatedAt) {
+  const value = parsePercent(cpuUsage);
+  if (value === null) {
+    return;
+  }
+
+  const latestPoint = state.cpuHistory.at(-1);
+  if (latestPoint && latestPoint.label === updatedAt && latestPoint.value === value) {
+    return;
+  }
+
+  state.cpuHistory.push({
+    value,
+    label: updatedAt || new Date().toLocaleTimeString(),
+  });
+
+  if (state.cpuHistory.length > CPU_HISTORY_LIMIT) {
+    state.cpuHistory = state.cpuHistory.slice(-CPU_HISTORY_LIMIT);
+  }
+}
+
+function renderCpuChart() {
+  const line = document.getElementById("cpuChartLine");
+  const area = document.getElementById("cpuChartArea");
+
+  if (state.cpuHistory.length < 2) {
+    line.setAttribute("d", "");
+    area.setAttribute("d", "");
+    cpuChartMeta.textContent = "Collecting CPU samples...";
+    return;
+  }
+
+  const width = 640;
+  const height = 220;
+  const bottom = height - 16;
+  const top = 16;
+  const usableHeight = bottom - top;
+  const stepX = width / Math.max(state.cpuHistory.length - 1, 1);
+
+  const points = state.cpuHistory.map((point, index) => {
+    const x = index * stepX;
+    const y = bottom - (point.value / 100) * usableHeight;
+    return { x, y };
+  });
+
+  const linePath = points
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`)
+    .join(" ");
+
+  const areaPath = [
+    `M ${points[0].x.toFixed(2)} ${bottom.toFixed(2)}`,
+    ...points.map((point) => `L ${point.x.toFixed(2)} ${point.y.toFixed(2)}`),
+    `L ${points.at(-1).x.toFixed(2)} ${bottom.toFixed(2)}`,
+    "Z",
+  ].join(" ");
+
+  line.setAttribute("d", linePath);
+  area.setAttribute("d", areaPath);
+
+  const latest = state.cpuHistory.at(-1);
+  cpuChartMeta.textContent = `${state.cpuHistory.length} samples • latest ${latest.value.toFixed(1)}% at ${latest.label}`;
+}
+
+function parsePercent(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const parsed = Number.parseFloat(value.replace("%", "").trim());
+  if (Number.isNaN(parsed)) {
+    return null;
+  }
+
+  return Math.max(0, Math.min(parsed, 100));
 }
