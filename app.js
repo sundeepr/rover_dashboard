@@ -70,6 +70,7 @@ const state = {
     cpuTemp: [],
     gpuUsage: [],
   },
+  detailHistories: {},
   pollTimer: null,
 };
 
@@ -294,6 +295,7 @@ function resetMetricHistories() {
     cpuTemp: [],
     gpuUsage: [],
   };
+  state.detailHistories = {};
 }
 
 function updateMetricHistory(metricKey, rawValue, updatedAt) {
@@ -405,14 +407,99 @@ function renderDetailedJetsonStats(details) {
     return;
   }
 
+  items.forEach((item) => {
+    if (shouldShowDetailTrendline(item.name)) {
+      updateDetailHistory(item.name, item.value);
+    }
+  });
+
   statsGrid.innerHTML = items
     .map(
       (item) => `
-        <article class="detail-stat">
+        <article class="detail-stat ${shouldShowDetailTrendline(item.name) ? "detail-stat-trend" : ""}">
           <span>${item.name}</span>
           <strong>${item.value}</strong>
+          ${
+            shouldShowDetailTrendline(item.name)
+              ? `<svg class="detail-chart" viewBox="0 0 240 56" preserveAspectRatio="none">
+                  <path id="${detailChartId(item.name)}Area" class="detail-chart-area"></path>
+                  <path id="${detailChartId(item.name)}Line" class="detail-chart-line"></path>
+                </svg>`
+              : ""
+          }
         </article>
       `,
     )
     .join("");
+
+  items.forEach((item) => {
+    if (shouldShowDetailTrendline(item.name)) {
+      renderDetailChart(item.name);
+    }
+  });
+}
+
+function shouldShowDetailTrendline(name) {
+  const normalizedName = String(name || "").toLowerCase();
+  return normalizedName === "ram" || normalizedName.startsWith("temp ");
+}
+
+function updateDetailHistory(name, rawValue) {
+  const normalizedName = String(name || "");
+  const value = normalizedName.toLowerCase() === "ram" ? parsePercent(rawValue) : parseTemperature(rawValue);
+  if (value === null) {
+    return;
+  }
+
+  const history = state.detailHistories[normalizedName] || [];
+  history.push(value);
+  state.detailHistories[normalizedName] = history.slice(-HISTORY_LIMIT);
+}
+
+function renderDetailChart(name) {
+  const chartId = detailChartId(name);
+  const line = document.getElementById(`${chartId}Line`);
+  const area = document.getElementById(`${chartId}Area`);
+  const history = state.detailHistories[String(name)] || [];
+
+  if (!line || !area || history.length < 2) {
+    if (line) {
+      line.setAttribute("d", "");
+    }
+    if (area) {
+      area.setAttribute("d", "");
+    }
+    return;
+  }
+
+  const width = 240;
+  const height = 56;
+  const bottom = height - 4;
+  const top = 4;
+  const usableHeight = bottom - top;
+  const stepX = width / Math.max(history.length - 1, 1);
+  const maxValue = String(name).toLowerCase() === "ram" ? 100 : Math.max(...history, 70);
+
+  const points = history.map((value, index) => {
+    const x = index * stepX;
+    const y = bottom - (value / maxValue) * usableHeight;
+    return { x, y };
+  });
+
+  const linePath = points
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`)
+    .join(" ");
+  const areaPath = [
+    `M ${points[0].x.toFixed(2)} ${bottom.toFixed(2)}`,
+    ...points.map((point) => `L ${point.x.toFixed(2)} ${point.y.toFixed(2)}`),
+    `L ${points.at(-1).x.toFixed(2)} ${bottom.toFixed(2)}`,
+    "Z",
+  ].join(" ");
+
+  line.setAttribute("d", linePath);
+  area.setAttribute("d", areaPath);
+}
+
+function detailChartId(name) {
+  return `detail-${String(name).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
 }
