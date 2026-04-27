@@ -55,6 +55,36 @@ const mockTelemetry = {
     },
     details: [],
   },
+  battery: {
+    available: true,
+    source: "mock",
+    updatedAt: new Date().toLocaleTimeString(),
+    status: "Healthy",
+    state: "Discharging",
+    summary: {
+      capacityRemaining: "82.0%",
+      totalVoltage: "52.67 V",
+      current: "-7.50 A",
+      power: "-395 W",
+      cellDelta: "0.016 V",
+    },
+    temperatures: [
+      { name: "Power Tube", value: "31.0 C" },
+      { name: "Sensor 1", value: "27.0 C" },
+      { name: "Sensor 2", value: "27.8 C" },
+    ],
+    cells: Array.from({ length: 16 }, (_, index) => ({
+      index: index + 1,
+      voltage: `${(3.29 + (index % 4) * 0.003).toFixed(3)} V`,
+      rawVoltage: 3.29 + (index % 4) * 0.003,
+    })),
+    controls: {
+      balancing: "On",
+      charging: "Off",
+      discharging: "On",
+    },
+    details: [],
+  },
 };
 
 const HISTORY_LIMIT = 30;
@@ -249,6 +279,7 @@ function renderTelemetry() {
     .join("");
 
   renderDetailedJetsonStats(state.telemetry.jetson?.details);
+  renderBatteryManagement(state.telemetry.battery);
 }
 
 function setText(id, value) {
@@ -437,6 +468,69 @@ function renderDetailedJetsonStats(details) {
       renderDetailChart(item.name);
     }
   });
+}
+
+function renderBatteryManagement(battery) {
+  const payload = battery || mockTelemetry.battery;
+  const capacityValue = parsePercent(payload.summary?.capacityRemaining);
+  const capacity = capacityValue === null ? 0 : capacityValue;
+
+  setText("batteryStatus", payload.status || "Unavailable");
+  setText("batteryCapacity", payload.summary?.capacityRemaining || "Unavailable");
+  setText(
+    "batterySource",
+    `${payload.source || "unknown"} · ${payload.state || "unknown"} · ${payload.updatedAt || "--"}`,
+  );
+
+  const fill = document.getElementById("batteryFill");
+  if (fill) {
+    fill.style.width = `${capacity}%`;
+    fill.classList.toggle("battery-fill-low", capacity > 0 && capacity < 20);
+  }
+
+  const summaryGrid = document.getElementById("batterySummaryGrid");
+  const summaryItems = [
+    ["Voltage", payload.summary?.totalVoltage],
+    ["Current", payload.summary?.current],
+    ["Power", payload.summary?.power],
+    ["Cell Delta", payload.summary?.cellDelta],
+    ["Balancing", payload.controls?.balancing],
+    ["Discharging", payload.controls?.discharging],
+  ];
+
+  summaryGrid.innerHTML = summaryItems
+    .map(
+      ([label, value]) => `
+        <div class="stat">
+          <span>${label}</span>
+          <strong>${value || "Unavailable"}</strong>
+        </div>
+      `,
+    )
+    .join("");
+
+  const cellsGrid = document.getElementById("batteryCellsGrid");
+  const cells = Array.isArray(payload.cells) ? payload.cells : [];
+  if (!cells.length) {
+    cellsGrid.innerHTML = `
+      <article class="detail-stat">
+        <span>Cell Voltages</span>
+        <strong>Unavailable</strong>
+      </article>
+    `;
+    return;
+  }
+
+  cellsGrid.innerHTML = cells
+    .map(
+      (cell) => `
+        <article class="cell-stat">
+          <span>C${cell.index}</span>
+          <strong>${cell.voltage}</strong>
+        </article>
+      `,
+    )
+    .join("");
 }
 
 function shouldShowDetailTrendline(name) {

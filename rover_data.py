@@ -7,6 +7,8 @@ from typing import Any
 
 import psutil
 
+from bms_data import get_battery_snapshot
+
 try:
     from jtop import jtop
 except ImportError:
@@ -72,6 +74,7 @@ def get_mock_telemetry() -> dict:
         },
         "sensors": build_sensor_cards(jetson_snapshot),
         "jetson": build_jetson_payload(jetson_snapshot),
+        "battery": get_battery_snapshot(),
     }
 
 

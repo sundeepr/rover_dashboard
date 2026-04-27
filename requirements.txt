@@ -1,3 +1,5 @@
 Flask==3.1.0
 psutil==7.0.0
-jetson-stats==4.3.2
+paho-mqtt==2.1.0
+bleak==0.22.3
+zeroconf==0.132.2

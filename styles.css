@@ -326,13 +326,78 @@ button:hover {
 .data-list,
 .sensor-grid,
 .admin-actions,
-.jetson-stats-grid {
+.jetson-stats-grid,
+.battery-cells-grid {
   display: grid;
   gap: 14px;
 }
 
 .jetson-stats-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.battery-overview {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 220px 1fr;
+  align-items: stretch;
+}
+
+.battery-gauge {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(5, 13, 25, 0.6);
+  border: 1px solid rgba(157, 180, 217, 0.1);
+  border-radius: 18px;
+  padding: 18px;
+}
+
+.battery-gauge strong {
+  font-size: 2rem;
+}
+
+.battery-gauge span {
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.78rem;
+}
+
+.battery-shell {
+  height: 34px;
+  border: 2px solid rgba(235, 243, 255, 0.72);
+  border-radius: 8px;
+  padding: 4px;
+  position: relative;
+}
+
+.battery-shell::after {
+  content: "";
+  position: absolute;
+  top: 9px;
+  right: -9px;
+  width: 5px;
+  height: 12px;
+  border-radius: 0 4px 4px 0;
+  background: rgba(235, 243, 255, 0.72);
+}
+
+.battery-fill {
+  width: 0%;
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--accent-strong), var(--accent));
+  transition: width 180ms ease;
+}
+
+.battery-fill-low {
+  background: linear-gradient(90deg, var(--danger), var(--warning));
+}
+
+.battery-cells-grid {
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  margin-top: 18px;
 }
 
 .data-list {
@@ -356,6 +421,13 @@ button:hover {
   padding: 14px 16px;
 }
 
+.cell-stat {
+  background: rgba(5, 13, 25, 0.6);
+  border: 1px solid rgba(157, 180, 217, 0.1);
+  border-radius: 8px;
+  padding: 10px;
+}
+
 .detail-stat-trend {
   padding-bottom: 10px;
 }
@@ -367,10 +439,24 @@ button:hover {
   font-size: 0.88rem;
 }
 
+.cell-stat span {
+  display: block;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.74rem;
+  margin-bottom: 4px;
+}
+
 .detail-stat strong {
   display: block;
   font-size: 1.12rem;
   word-break: break-word;
+}
+
+.cell-stat strong {
+  display: block;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.84rem;
 }
 
 .detail-chart {
@@ -441,7 +527,9 @@ button:hover {
   .admin-actions,
   .stats-grid.compact,
   .metrics-grid,
-  .jetson-stats-grid {
+  .jetson-stats-grid,
+  .battery-overview,
+  .battery-cells-grid {
     grid-template-columns: 1fr;
   }
 }

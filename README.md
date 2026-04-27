@@ -9,8 +9,9 @@ Small first iteration of a web-based rover dashboard with a `Flask` backend and 
 - Admin-only actions panel
 - `Flask` API for login, health, and telemetry
 - Jetson-aware telemetry via `jetson-stats` / `jtop` when available
+- JK-BMS battery telemetry using `syssi/esphome-jk-bms` on an ESP board
 - Configurable local rover endpoint
-- Automatic fallback to mock telemetry while the Jetson API is not ready
+- Automatic fallback to mock telemetry while the Jetson or BMS hardware is not ready
 
 ## Demo accounts
 
@@ -33,6 +34,8 @@ If needed, install it with elevated privileges as recommended by the project:
 sudo pip3 install -U jetson-stats
 ```
 
+`jetson-stats` is intentionally not in `requirements.txt` because it is Jetson/Linux-specific and does not install cleanly on macOS.
+
 Start the backend:
 
 ```bash
@@ -45,11 +48,92 @@ Then open the dashboard:
 http://127.0.0.1:6060
 ```
 
+Battery telemetry defaults to a local mock source, so it works on this machine without the Jetson, ESP board, or BMS connected.
+
+## JK-BMS integration
+
+The ESPHome config in `esphome/jk-bms-rover.yaml` uses the JK-BMS external component:
+
+```yaml
+external_components:
+  - source: github://syssi/esphome-jk-bms@main
+```
+
+Later, flash that config to an ESP32 wired to the JK-BMS UART-TTL port. The config publishes MQTT topics under `jk-bms/#`, and the Flask backend can consume those topics.
+
+Create an ESPHome `secrets.yaml` next to the config:
+
+```yaml
+wifi_ssid: YOUR_WIFI
+wifi_password: YOUR_WIFI_PASSWORD
+mqtt_host: 192.168.1.10
+mqtt_username: YOUR_MQTT_USER
+mqtt_password: YOUR_MQTT_PASSWORD
+```
+
+Validate or flash when you have the ESP board:
+
+```bash
+esphome config esphome/jk-bms-rover.yaml
+esphome run esphome/jk-bms-rover.yaml
+```
+
+Use mock battery telemetry locally:
+
+```bash
+BMS_SOURCE=mock python3 server.py
+```
+
+Use simulator POSTs locally:
+
+```bash
+BMS_SOURCE=post python3 server.py
+```
+
+Then send a sample battery payload:
+
+```bash
+curl -X POST http://127.0.0.1:6060/api/battery/simulate \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "capacity_remaining": 76.4,
+    "total_voltage": 52.31,
+    "current": -8.2,
+    "cells": [3.267, 3.268, 3.269, 3.266, 3.271, 3.268, 3.267, 3.269],
+    "power_tube_temperature": 32,
+    "temperature_sensor_1": 28,
+    "temperature_sensor_2": 29,
+    "balancing": true,
+    "charging": false,
+    "discharging": true,
+    "errors": "None"
+  }'
+```
+
+Use ESPHome MQTT later:
+
+```bash
+BMS_SOURCE=mqtt BMS_MQTT_HOST=127.0.0.1 BMS_MQTT_TOPIC_PREFIX=jk-bms python3 server.py
+```
+
+Discover BMS-related devices visible to this machine:
+
+```bash
+curl http://127.0.0.1:6060/api/bms/discover?timeout=6
+```
+
+The discovery endpoint checks ESPHome services on the LAN with mDNS/Bonjour, the LAN ARP cache for nearby IP devices, and BLE advertisements with `bleak`.
+
+Discovery only finds candidates. Actual battery values still come from the ESPHome JK-BMS component over MQTT, or from the simulator/mock sources while hardware is unavailable.
+
 ## Backend endpoints
 
 - `GET /api/health`
 - `POST /api/login`
 - `GET /api/telemetry`
+- `GET /api/battery`
+- `POST /api/battery/simulate`
+- `GET /api/bms/discover?timeout=4`
 
 Example login payload:
 
@@ -95,12 +179,28 @@ Current response:
     "source": "jtop",
     "stats": {},
     "board": {}
+  },
+  "battery": {
+    "available": true,
+    "source": "mock",
+    "status": "Healthy",
+    "state": "Discharging",
+    "summary": {
+      "capacityRemaining": "82.0%",
+      "totalVoltage": "52.67 V",
+      "current": "-7.50 A",
+      "power": "-395 W",
+      "cellDelta": "0.016 V"
+    },
+    "cells": [
+      { "index": 1, "voltage": "3.292 V", "rawVoltage": 3.292 }
+    ]
   }
 }
 ```
 
 ## Next good step
 
-The backend now prefers `jetson-stats` for Jetson-specific monitoring and falls back to generic Linux metrics when `jtop` is unavailable.
+The backend now prefers `jetson-stats` for Jetson-specific monitoring and can read JK-BMS values from mock data, simulator POSTs, or ESPHome MQTT.
 
-Next, we can use the new `jetson` payload in the frontend to render board details like JetPack, power mode, fan state, and accelerator activity the way `jtop` does.
+Next, wire the ESP32 to the real JK-BMS UART-TTL port and point `BMS_SOURCE=mqtt` at the MQTT broker used by ESPHome.

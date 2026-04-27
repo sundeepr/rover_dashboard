@@ -105,6 +105,30 @@
             </div>
           </article>
 
+          <article class="panel span-2">
+            <div class="section-header">
+              <div>
+                <h3>Battery Management</h3>
+                <p>JK-BMS telemetry from ESPHome or the local simulator.</p>
+              </div>
+              <span class="status-pill" id="batteryStatus">--</span>
+            </div>
+
+            <div class="battery-overview">
+              <div class="battery-gauge" aria-label="Battery state of charge">
+                <div class="battery-shell">
+                  <div id="batteryFill" class="battery-fill"></div>
+                </div>
+                <strong id="batteryCapacity">--</strong>
+                <span id="batterySource">--</span>
+              </div>
+
+              <div class="stats-grid compact" id="batterySummaryGrid"></div>
+            </div>
+
+            <div id="batteryCellsGrid" class="battery-cells-grid"></div>
+          </article>
+
           <article class="panel">
             <div class="section-header">
               <div>

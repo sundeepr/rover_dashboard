@@ -5,6 +5,8 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request, send_from_directory
 
+from bms_data import get_battery_snapshot, update_battery_snapshot
+from bms_discovery import discover_bms_devices
 from rover_data import get_mock_telemetry
 
 
@@ -74,6 +76,28 @@ def login():
 @app.get("/api/telemetry")
 def telemetry():
     return jsonify(get_mock_telemetry())
+
+
+@app.get("/api/battery")
+def battery():
+    return jsonify(get_battery_snapshot())
+
+
+@app.post("/api/battery/simulate")
+def simulate_battery():
+    payload = request.get_json(silent=True) or {}
+    return jsonify(update_battery_snapshot(payload))
+
+
+@app.get("/api/bms/discover")
+def discover_bms():
+    timeout = request.args.get("timeout", "4")
+    try:
+        timeout_seconds = max(1.0, min(float(timeout), 12.0))
+    except ValueError:
+        timeout_seconds = 4.0
+
+    return jsonify(discover_bms_devices(timeout_seconds))
 
 
 if __name__ == "__main__":
