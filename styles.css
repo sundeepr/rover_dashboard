@@ -609,23 +609,21 @@ button:hover {
   border: 0;
 }
 
-.gps-map-placeholder {
-  min-height: 360px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  text-align: center;
-  color: var(--muted);
-}
-
-.gps-map-placeholder p {
-  margin: 12px 0 0;
-}
-
 .gps-map-link {
   display: inline-block;
   margin-top: 12px;
   color: var(--accent);
+}
+
+.telemetry-top-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+@media (max-width: 920px) {
+  .telemetry-top-row {
+    grid-template-columns: 1fr;
+  }
 }

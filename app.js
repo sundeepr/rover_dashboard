@@ -633,7 +633,7 @@ function renderGps(gps) {
     && Number.isFinite(gps.longitude) && Math.abs(gps.longitude) <= 180;
   const available = gps?.available === true && validCoordinates;
   markSection("gpsGrid", available ? gps.source || "unavailable" : "unavailable");
-  setText("gpsMessage", available ? "Position reported by the rover GPS receiver." : "Waiting for rover GPS data.");
+  setText("gpsMessage", available ? "Position reported by the rover GPS receiver." : "World view · Waiting for rover GPS data.");
   renderGpsMap(gps, available);
   const items = [
     ["Latitude", available ? `${gps.latitude.toFixed(6)}°` : "--"],
@@ -659,21 +659,19 @@ function renderGps(gps) {
 function renderGpsMap(gps, available) {
   const frame = document.getElementById("gpsMapFrame");
   const link = document.getElementById("gpsMapLink");
-  frame.classList.toggle("hidden", !available);
   link.classList.toggle("hidden", !available);
-  document.getElementById("gpsMapPlaceholder").classList.toggle("hidden", available);
-
-  if (!available) {
-    frame.removeAttribute("src");
-    link.removeAttribute("href");
-    return;
-  }
-
-  const coordinates = `${gps.latitude.toFixed(6)},${gps.longitude.toFixed(6)}`;
-  const mapUrl = `https://www.google.com/maps?q=${encodeURIComponent(coordinates)}&z=18&output=embed`;
+  const coordinates = available
+    ? `${gps.latitude.toFixed(6)},${gps.longitude.toFixed(6)}` : null;
+  const mapUrl = available
+    ? `https://www.google.com/maps?q=${encodeURIComponent(coordinates)}&z=18&output=embed`
+    : "https://www.google.com/maps?ll=0,0&z=2&output=embed";
   // Preserve map interaction across polling updates when the position is unchanged.
   if (frame.getAttribute("src") !== mapUrl) {
     frame.src = mapUrl;
   }
-  link.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(coordinates)}`;
+  if (available) {
+    link.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(coordinates)}`;
+  } else {
+    link.removeAttribute("href");
+  }
 }

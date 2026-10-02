@@ -221,6 +221,6 @@ fields empty until valid coordinates are available; it does not use the browser'
 location or invent a rover position.
 
 The GPS section includes a Google Maps iframe and an “Open in Google Maps” link.
-Both use the rover coordinates and stay hidden when a valid GPS position is
-unavailable. The frame only reloads when coordinates change (rounded to six
+The map shows a world view without a rover marker when GPS is unavailable.
+Valid coordinates centre the map on the rover and reveal the external map link. The frame only reloads when coordinates change (rounded to six
 decimal places); mock positions retain the section's grey sample styling.

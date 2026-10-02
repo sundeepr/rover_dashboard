@@ -61,7 +61,8 @@
         </header>
 
         <section class="grid layout-main">
-          <article class="panel span-2">
+          <div class="telemetry-top-row">
+          <article class="panel">
             <div class="section-header">
               <div>
                 <h3>Live Metrics</h3>
@@ -104,6 +105,28 @@
               </div>
             </div>
           </article>
+
+          <article class="panel">
+            <div class="section-header">
+              <div>
+                <h3>Rover GPS Location</h3>
+                <p id="gpsMessage">Waiting for rover GPS data.</p>
+              </div>
+            </div>
+            <div id="gpsGrid" class="stats-grid compact"></div>
+            <div class="gps-map">
+              <iframe
+                id="gpsMapFrame"
+                src="https://www.google.com/maps?ll=0,0&amp;z=2&amp;output=embed"
+                title="Rover GPS location on Google Maps"
+                loading="lazy"
+                referrerpolicy="no-referrer-when-downgrade"
+                allowfullscreen
+              ></iframe>
+            </div>
+            <a id="gpsMapLink" class="gps-map-link hidden" target="_blank" rel="noopener noreferrer">Open in Google Maps</a>
+          </article>
+          </div>
 
           <article class="panel span-2">
             <div class="section-header">
@@ -149,30 +172,7 @@
             <div id="odometryGrid" class="stats-grid compact"></div>
           </article>
 
-          <article class="panel span-2">
-            <div class="section-header">
-              <div>
-                <h3>Rover GPS Location</h3>
-                <p id="gpsMessage">Waiting for rover GPS data.</p>
-              </div>
-            </div>
-            <div id="gpsGrid" class="stats-grid compact"></div>
-            <div class="gps-map">
-              <div id="gpsMapPlaceholder" class="gps-map-placeholder">
-                <strong>Rover location map</strong>
-                <p>Google Maps will appear when rover GPS coordinates are available.</p>
-              </div>
-              <iframe
-                id="gpsMapFrame"
-                class="hidden"
-                title="Rover GPS location on Google Maps"
-                loading="lazy"
-                referrerpolicy="no-referrer-when-downgrade"
-                allowfullscreen
-              ></iframe>
-            </div>
-            <a id="gpsMapLink" class="gps-map-link hidden" target="_blank" rel="noopener noreferrer">Open in Google Maps</a>
-          </article>
+
 
           <article class="panel span-2">
             <div class="section-header">
