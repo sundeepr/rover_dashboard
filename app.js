@@ -12,7 +12,9 @@ const demoUsers = {
 };
 
 const mockTelemetry = {
+  sources: { devices: "mock", odometry: "mock" },
   status: {
+    source: "mock",
     cpuUsage: "18.2%",
     memoryUsage: "42.5%",
     cpuTemp: "58 C",
@@ -235,6 +237,16 @@ async function loginUser(username, password) {
 
 function renderTelemetry() {
   const { status, devices, odometry } = state.telemetry;
+  const metricSource = status.source || "mock";
+  if (state.metricSource !== metricSource) {
+    resetMetricHistories();
+    state.metricSource = metricSource;
+  }
+  markSection("metricsGrid", metricSource);
+  markSection("devicesList", state.telemetry.sources?.devices || "mock");
+  markSection("odometryGrid", state.telemetry.sources?.odometry || "mock");
+  markSection("jetsonStatsGrid", state.telemetry.jetson?.available ? state.telemetry.jetson.source : "unavailable");
+  renderGps(state.telemetry.gps);
 
   setText("cpuUsageValue", status.cpuUsage);
   setText("memoryUsageValue", status.memoryUsage);
@@ -472,6 +484,7 @@ function renderDetailedJetsonStats(details) {
 
 function renderBatteryManagement(battery) {
   const payload = battery || mockTelemetry.battery;
+  markSection("batterySummaryGrid", payload.available === false ? "unavailable" : payload.source || "mock");
   const capacityValue = parsePercent(payload.summary?.capacityRemaining);
   const capacity = capacityValue === null ? 0 : capacityValue;
 
@@ -596,4 +609,71 @@ function renderDetailChart(name) {
 
 function detailChartId(name) {
   return `detail-${String(name).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+}
+
+// Source metadata lets each section switch to real data independently.
+function markSection(contentId, source) {
+  const panel = document.getElementById(contentId).closest(".panel");
+  const sample = ["mock", "simulator", "post"].includes(source);
+  const unavailable = !source || source === "unavailable";
+  panel.classList.toggle("sample-data", sample || unavailable);
+  let badge = panel.querySelector(".source-badge");
+  if (!badge) {
+    badge = document.createElement("span");
+    badge.className = "source-badge";
+    panel.querySelector(".section-header").append(badge);
+  }
+  badge.textContent = sample ? (source === "mock" ? "Mock data" : "Simulated data")
+    : unavailable ? "Awaiting data" : source === "system" ? "System data" : "Live data";
+}
+
+function renderGps(gps) {
+  const validCoordinates = typeof gps?.latitude === "number" && Number.isFinite(gps.latitude)
+    && Math.abs(gps.latitude) <= 90 && typeof gps?.longitude === "number"
+    && Number.isFinite(gps.longitude) && Math.abs(gps.longitude) <= 180;
+  const available = gps?.available === true && validCoordinates;
+  markSection("gpsGrid", available ? gps.source || "unavailable" : "unavailable");
+  setText("gpsMessage", available ? "Position reported by the rover GPS receiver." : "Waiting for rover GPS data.");
+  renderGpsMap(gps, available);
+  const items = [
+    ["Latitude", available ? `${gps.latitude.toFixed(6)}°` : "--"],
+    ["Longitude", available ? `${gps.longitude.toFixed(6)}°` : "--"],
+    ["Altitude", available && Number.isFinite(gps.altitude) ? `${gps.altitude} m` : "--"],
+    ["Satellites", available ? gps.satellites ?? "--" : "--"],
+    ["Fix", available ? gps.fix ?? "--" : "--"],
+    ["Last update", available ? gps.updatedAt ?? "--" : "--"],
+  ];
+  const grid = document.getElementById("gpsGrid");
+  grid.replaceChildren(...items.map(([label, value]) => {
+    const card = document.createElement("div");
+    card.className = "stat";
+    const title = document.createElement("span");
+    title.textContent = label;
+    const reading = document.createElement("strong");
+    reading.textContent = value;
+    card.append(title, reading);
+    return card;
+  }));
+}
+
+function renderGpsMap(gps, available) {
+  const frame = document.getElementById("gpsMapFrame");
+  const link = document.getElementById("gpsMapLink");
+  frame.classList.toggle("hidden", !available);
+  link.classList.toggle("hidden", !available);
+  document.getElementById("gpsMapPlaceholder").classList.toggle("hidden", available);
+
+  if (!available) {
+    frame.removeAttribute("src");
+    link.removeAttribute("href");
+    return;
+  }
+
+  const coordinates = `${gps.latitude.toFixed(6)},${gps.longitude.toFixed(6)}`;
+  const mapUrl = `https://www.google.com/maps?q=${encodeURIComponent(coordinates)}&z=18&output=embed`;
+  // Preserve map interaction across polling updates when the position is unchanged.
+  if (frame.getAttribute("src") !== mapUrl) {
+    frame.src = mapUrl;
+  }
+  link.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(coordinates)}`;
 }

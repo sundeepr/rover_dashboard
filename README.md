@@ -204,3 +204,23 @@ Current response:
 The backend now prefers `jetson-stats` for Jetson-specific monitoring and can read JK-BMS values from mock data, simulator POSTs, or ESPHome MQTT.
 
 Next, wire the ESP32 to the real JK-BMS UART-TTL port and point `BMS_SOURCE=mqtt` at the MQTT broker used by ESPHome.
+
+### Section data sources and GPS
+
+The UI greys out sections marked `mock`, `simulator`, or `post` and labels them
+as sample data. Unavailable sections show “Awaiting data”. The telemetry payload
+uses `status.source` for system metrics, `sources.devices` and `sources.odometry`
+for those sections, and `battery.source` / `jetson.source` for hardware readings.
+Update each source alongside its real readings when connecting hardware.
+
+The new `gps` object defaults to `available: false` with null readings. When a
+rover GPS receiver is integrated, provide `available: true`, a `source` identifying
+the receiver, numeric `latitude` and `longitude` in degrees, optional numeric
+`altitude` in metres, `satellites`, `fix`, and `updatedAt`. The UI leaves location
+fields empty until valid coordinates are available; it does not use the browser's
+location or invent a rover position.
+
+The GPS section includes a Google Maps iframe and an “Open in Google Maps” link.
+Both use the rover coordinates and stay hidden when a valid GPS position is
+unavailable. The frame only reloads when coordinates change (rounded to six
+decimal places); mock positions retain the section's grey sample styling.

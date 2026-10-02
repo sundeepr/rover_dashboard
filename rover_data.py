@@ -58,6 +58,12 @@ def get_mock_telemetry() -> dict:
 
     return {
         "status": build_status(updated_at, jetson_snapshot),
+        "sources": {"devices": "mock", "odometry": "mock"},
+        "gps": {
+            "source": "unavailable", "available": False,
+            "latitude": None, "longitude": None, "altitude": None,
+            "satellites": None, "fix": None, "updatedAt": None,
+        },
         "devices": [
             {"name": "Stereo Camera", "port": "/dev/video0", "status": "online"},
             {"name": "Lidar", "port": "/dev/ttyUSB0", "status": "online"},

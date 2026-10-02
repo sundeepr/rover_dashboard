@@ -65,7 +65,7 @@
             <div class="section-header">
               <div>
                 <h3>Live Metrics</h3>
-                <p>Continuous Jetson metrics with inline spark lines.</p>
+                <p>System metrics from the connected backend. Grey sections contain sample or unavailable data.</p>
               </div>
             </div>
 
@@ -152,8 +152,33 @@
           <article class="panel span-2">
             <div class="section-header">
               <div>
+                <h3>Rover GPS Location</h3>
+                <p id="gpsMessage">Waiting for rover GPS data.</p>
+              </div>
+            </div>
+            <div id="gpsGrid" class="stats-grid compact"></div>
+            <div class="gps-map">
+              <div id="gpsMapPlaceholder" class="gps-map-placeholder">
+                <strong>Rover location map</strong>
+                <p>Google Maps will appear when rover GPS coordinates are available.</p>
+              </div>
+              <iframe
+                id="gpsMapFrame"
+                class="hidden"
+                title="Rover GPS location on Google Maps"
+                loading="lazy"
+                referrerpolicy="no-referrer-when-downgrade"
+                allowfullscreen
+              ></iframe>
+            </div>
+            <a id="gpsMapLink" class="gps-map-link hidden" target="_blank" rel="noopener noreferrer">Open in Google Maps</a>
+          </article>
+
+          <article class="panel span-2">
+            <div class="section-header">
+              <div>
                 <h3>Detailed Jetson Stats</h3>
-                <p>Live values from the `jtop.stats` payload.</p>
+                <p>Hardware readings from the connected Jetson.</p>
               </div>
             </div>
             <div id="jetsonStatsGrid" class="jetson-stats-grid"></div>
