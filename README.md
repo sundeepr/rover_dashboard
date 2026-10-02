@@ -50,7 +50,60 @@ http://127.0.0.1:6060
 
 Battery telemetry defaults to a local mock source, so it works on this machine without the Jetson, ESP board, or BMS connected.
 
-## JK-BMS integration
+## Direct Jetson Bluetooth battery connection
+
+The backend supports a direct **JK-BMS → Jetson Bluetooth → dashboard** path.
+No ESP32 or MQTT broker is needed for this mode. The reader uses `bleak` and
+JK02 frame definitions from [syssi/esphome-jk-bms](https://github.com/syssi/esphome-jk-bms).
+The upstream Apache-2.0 license is in `third_party/JK-BMS-LICENSE`.
+
+On the Jetson, enable its Bluetooth adapter and install the backend dependencies
+in the Python environment used to run the server (`bleak==0.22.3` is already in
+`requirements.txt`). The Linux Bluetooth service (BlueZ) must be running.
+Find the BMS MAC address using the existing `/api/bms/discover?timeout=6` endpoint
+or the Jetson's Bluetooth settings. Close other BMS apps before connecting.
+
+Start the backend with your actual address and protocol, for example:
+
+```bash
+BMS_SOURCE=ble BMS_BLE_ADDRESS=AA:BB:CC:DD:EE:FF BMS_BLE_PROTOCOL=JK02_32S python3 server.py
+```
+
+For this rover's `24v 45Ah` device (`JK_BD4A8S6P`, hardware `V15H`, firmware
+`V15.41`), the supplied configuration selects `JK02_32S` and address
+`C8:47:80:44:17:11`. From the repository directory on the Jetson:
+
+```bash
+source config/jetson-battery.env
+python3 server.py
+```
+
+Close the phone's JK app before starting the connection. Open the dashboard to
+start telemetry, then check `http://127.0.0.1:6060/api/battery` on the Jetson.
+A connected reader reports `available: true` and `source: "jk-bms-ble"`.
+The screenshot identifies the hardware; it is not a live connection test.
+
+The address above is a placeholder. Explicitly select the protocol that matches
+the BMS hardware: upstream recommends `JK02_24S` for hardware versions 6–10 and
+`JK02_32S` for versions 11 and newer. This reader does not support legacy `JK04`.
+These names describe protocol layouts, not the number of installed cells.
+
+The worker starts on the first battery/telemetry request. It requests telemetry
+only, validates checksums, reconnects after failure, and expires readings after
+20 seconds without a valid status frame. The API uses source `jk-bms-ble` for
+received data and preserves the actual reception timestamp. Missing configuration,
+connection errors, and stale readings show as unavailable, without mock fallback
+in BLE mode. Keep one backend process connected to the BMS; the development
+reloader is disabled to avoid duplicate Bluetooth connections.
+
+Readings include state of charge, voltage, signed current, calculated power,
+cell voltages, temperatures, MOS enable flags, and raw fault codes. Charging state
+is based on measured current rather than MOS enable flags. Hardware verification
+is still required against the JK app; automated tests use synthetic frames.
+
+Run the protocol tests with `python3 -m unittest discover -s tests -v`.
+
+## Optional ESPHome / MQTT integration
 
 The ESPHome config in `esphome/jk-bms-rover.yaml` uses the JK-BMS external component:
 
@@ -203,7 +256,7 @@ Current response:
 
 The backend now prefers `jetson-stats` for Jetson-specific monitoring and can read JK-BMS values from mock data, simulator POSTs, or ESPHome MQTT.
 
-Next, wire the ESP32 to the real JK-BMS UART-TTL port and point `BMS_SOURCE=mqtt` at the MQTT broker used by ESPHome.
+For a direct Jetson connection, follow the Bluetooth setup above. The ESP32 UART/MQTT route remains an alternative.
 
 ### Section data sources and GPS
 

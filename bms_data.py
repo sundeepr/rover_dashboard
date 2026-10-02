@@ -16,6 +16,16 @@ BMS_TOPIC_PREFIX = os.environ.get("BMS_MQTT_TOPIC_PREFIX", "jk-bms").strip("/")
 def get_battery_snapshot() -> dict[str, Any]:
     source = os.environ.get("BMS_SOURCE", "mock").strip().lower()
 
+    if source in {"ble", "bluetooth"}:
+        from bms_ble import battery_reader
+        payload, updated_at, reason = battery_reader.snapshot()
+        if payload is None:
+            result = unavailable_bms(reason)
+        else:
+            result = normalize_bms_payload(payload, "jk-bms-ble")
+        result["updatedAt"] = updated_at
+        return result
+
     if source == "post" and _POSTED_SNAPSHOT:
         return normalize_bms_payload(_POSTED_SNAPSHOT, "simulator")
 
