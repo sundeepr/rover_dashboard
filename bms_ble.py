@@ -17,6 +17,33 @@ CHAR_UUID = '0000ffe1-0000-1000-8000-00805f9b34fb'
 PROTOCOLS = {'JK02_24S', 'JK02_32S'}
 
 
+# Bit meanings from syssi/esphome-jk-bms DEFAULT_ERRORS_JK02.
+ERROR_LABELS = {
+    0: 'Wire resistance', 1: 'MOSFET overtemperature',
+    2: 'Cell count differs from settings', 4: 'Battery fully charged',
+    5: 'Battery pack overvoltage', 6: 'Charge overcurrent',
+    7: 'Charge short circuit', 8: 'Charge overtemperature',
+    9: 'Charge undertemperature', 10: 'Coprocessor communication error',
+    11: 'Cell undervoltage', 12: 'Battery pack undervoltage',
+    13: 'Discharge overcurrent', 14: 'Discharge short circuit',
+    15: 'Discharge overtemperature', 16: 'Charging MOSFET abnormal',
+    17: 'Discharging MOSFET abnormal', 18: 'GPS disconnected',
+    19: 'Change BMS password', 20: 'Discharge enable failed',
+    21: 'Battery overtemperature', 22: 'Temperature sensor anomaly',
+    23: 'PL module anomaly', 24: 'Short-circuit protection release failed',
+    25: 'Discharge overcurrent protection II', 26: 'Discharge overcurrent protection III',
+    27: 'Discharge undertemperature alarm', 28: 'GPS remote lock',
+}
+
+
+def decode_alerts(mask):
+    return [
+        {'bit': bit, 'message': ERROR_LABELS.get(bit, f'Unknown BMS flag (bit {bit})'),
+         'severity': 'info' if bit == 4 else 'warning' if bit == 19 else 'fault'}
+        for bit in range(32) if mask & (1 << bit)
+    ]
+
+
 def read_command(command: int) -> bytes:
     if command not in (0x96, 0x97):
         raise ValueError('Only telemetry and device-info requests are supported')
@@ -68,6 +95,7 @@ def decode_status(frame: bytes, protocol: str) -> dict | None:
     if not cells or voltage <= 0 or soc > 100:
         raise ValueError('Invalid battery values; verify BMS_BLE_PROTOCOL')
     errors = number(134 + shift, 4) if shift else number(136)
+    alerts = decode_alerts(errors)
     current = number(126 + shift, 4, True) / 1000
     return {
         'total_voltage': voltage, 'current': current, 'capacity_remaining': soc,
@@ -75,7 +103,8 @@ def decode_status(frame: bytes, protocol: str) -> dict | None:
         'power_tube_temperature': number(112 + shift if shift else 134, signed=True) / 10,
         'temperature_sensor_1': number(130 + shift, signed=True) / 10,
         'temperature_sensor_2': number(132 + shift, signed=True) / 10,
-        'errors': f'BMS fault 0x{errors:08X}' if errors else 'None',
+        'errors': '; '.join(a['message'] for a in alerts if a['severity'] == 'fault') or 'None',
+        'alerts': alerts, 'error_mask': f'0x{errors:08X}',
         'balancing': bool(frame[140 + shift]),
         'charging': bool(frame[166 + shift]), 'discharging': bool(frame[167 + shift]),
         # MOS enable flags do not describe actual current flow.

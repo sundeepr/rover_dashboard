@@ -28,6 +28,26 @@ def status_frame(protocol='JK02_32S'):
 
 
 class BatteryTests(unittest.TestCase):
+    def test_password_warning_and_mixed_fault(self):
+        for mask, expected in ((0x80000, 'Warning'), (0x80020, 'Fault'), (0, 'Healthy')):
+            frame = bytearray(status_frame())
+            frame[166:170] = mask.to_bytes(4, 'little')
+            frame[299] = sum(frame[:299]) & 255
+            payload = decode_status(frame, 'JK02_32S')
+            with patch.dict(os.environ, {'BMS_SOURCE': 'ble'}), patch(
+                'bms_ble.battery_reader.snapshot', return_value=(payload, 'now', None)
+            ):
+                result = get_battery_snapshot()
+            self.assertEqual(result['status'], expected)
+            self.assertEqual(result['errorMask'], f'0x{mask:08X}')
+            if mask & 0x80000:
+                self.assertIn('Change BMS password', [a['message'] for a in result['alerts']])
+
+    def test_unknown_bits_remain_faults(self):
+        from bms_ble import decode_alerts
+        self.assertEqual(decode_alerts(1 << 31)[0]['severity'], 'fault')
+        self.assertEqual(decode_alerts(1 << 4)[0]['severity'], 'info')
+
     def test_both_protocols_and_current_direction(self):
         for protocol in ('JK02_24S', 'JK02_32S'):
             result = decode_status(status_frame(protocol), protocol)

@@ -144,6 +144,7 @@ logoutButton.addEventListener("click", () => {
   state.baseUrl = getDefaultBaseUrl();
   state.telemetry = mockTelemetry;
   resetMetricHistories();
+  batteryHistory.points = [];
   renderSession();
 });
 
@@ -488,7 +489,10 @@ function renderBatteryManagement(battery) {
   const capacityValue = parsePercent(payload.summary?.capacityRemaining);
   const capacity = capacityValue === null ? 0 : capacityValue;
 
+  renderBatteryAlerts(payload);
+  renderBatteryHistory(payload);
   setText("batteryStatus", payload.status || "Unavailable");
+  document.getElementById("batteryStatus").dataset.status = payload.status || "Unavailable";
   setText("batteryCapacity", payload.summary?.capacityRemaining || "Unavailable");
   setText(
     "batterySource",
@@ -673,5 +677,70 @@ function renderGpsMap(gps, available) {
     link.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(coordinates)}`;
   } else {
     link.removeAttribute("href");
+  }
+}
+
+const batteryHistory = { source: null, points: [], lastStamp: null };
+const BATTERY_WINDOW_MS = 5 * 60 * 1000;
+
+function renderBatteryAlerts(payload) {
+  const container = document.getElementById("batteryAlerts");
+  const alerts = Array.isArray(payload.alerts) ? payload.alerts : [];
+  container.replaceChildren(...alerts.map((alert) => {
+    const message = document.createElement("p");
+    message.className = `battery-alert ${["fault", "warning", "info"].includes(alert.severity) ? alert.severity : "warning"}`;
+    message.textContent = `${alert.message} (${payload.errorMask || "BMS flag"})`;
+    return message;
+  }));
+  container.classList.toggle("hidden", !alerts.length);
+}
+
+function renderBatteryHistory(payload) {
+  const now = Date.now();
+  // Clear samples when switching between real, simulated and mock sources.
+  if (batteryHistory.source !== payload.source) {
+    batteryHistory.points = [];
+    batteryHistory.lastStamp = null;
+    batteryHistory.source = payload.source;
+  }
+  batteryHistory.points = batteryHistory.points.filter((point) => point.time >= now - BATTERY_WINDOW_MS);
+  const available = payload.available === true;
+  const stamp = payload.updatedAt;
+  if (!available || !stamp || stamp !== batteryHistory.lastStamp) {
+    const capacity = available ? Number.parseFloat(payload.summary?.capacityRemaining) : NaN;
+    const current = available ? Number.parseFloat(payload.summary?.current) : NaN;
+    batteryHistory.points.push({ time: now,
+      Capacity: Number.isFinite(capacity) && capacity >= 0 && capacity <= 100 ? capacity : null,
+      Current: Number.isFinite(current) ? current : null });
+    batteryHistory.lastStamp = stamp;
+  }
+  for (const key of ["Capacity", "Current"]) {
+    const points = batteryHistory.points;
+    const values = points.map((p) => p[key]).filter((value) => value !== null);
+    const unit = key === "Capacity" ? "%" : "A";
+    const latest = available ? Number.parseFloat(key === "Capacity" ? payload.summary?.capacityRemaining : payload.summary?.current) : NaN;
+    setText(`battery${key}Latest`, Number.isFinite(latest) ? `${latest.toFixed(1)} ${unit}` : "Unavailable");
+    const extent = Math.max(1, ...values.map(Math.abs)) * 1.1;
+    const low = key === "Capacity" ? 0 : -extent;
+    const high = key === "Capacity" ? 100 : extent;
+    setText(`battery${key}Range`, `Scale: ${low.toFixed(0)} to ${high.toFixed(0)} ${unit}`);
+    const y = (value) => 132 - (value - low) / (high - low) * 124;
+    let path = "";
+    let previous = null;
+    let last = null;
+    for (const point of points) {
+      if (point[key] === null) { previous = null; continue; }
+      const x = 8 + (point.time - (now - BATTERY_WINDOW_MS)) / BATTERY_WINDOW_MS * 384;
+      const move = !previous || point.time - previous.time > 20000;
+      path += `${move ? "M" : "L"} ${x.toFixed(2)} ${y(point[key]).toFixed(2)} `;
+      previous = point;
+      last = { x, y: y(point[key]) };
+    }
+    document.getElementById(`battery${key}Path`).setAttribute("d", path);
+    document.getElementById(`battery${key}Zero`).setAttribute("d", `M 8 ${y(0)} L 392 ${y(0)}`);
+    const dot = document.getElementById(`battery${key}Dot`);
+    dot.setAttribute("visibility", last ? "visible" : "hidden");
+    if (last) { dot.setAttribute("cx", last.x); dot.setAttribute("cy", last.y); }
+    document.getElementById(`battery${key}Empty`).classList.toggle("hidden", values.length > 0);
   }
 }

@@ -137,6 +137,7 @@
               <span class="status-pill" id="batteryStatus">--</span>
             </div>
 
+            <div id="batteryAlerts" class="battery-alerts hidden" role="status"></div>
             <div class="battery-overview">
               <div class="battery-gauge" aria-label="Battery state of charge">
                 <div class="battery-shell">
@@ -150,6 +151,35 @@
             </div>
 
             <div id="batteryCellsGrid" class="battery-cells-grid"></div>
+            <div class="battery-trends">
+              <section class="battery-trend">
+                <h4>Battery capacity · past 5 minutes</h4>
+                <p class="muted">State of charge</p>
+                <strong id="batteryCapacityLatest">-- %</strong>
+                <p id="batteryCapacityRange" class="muted"></p>
+                <svg id="batteryCapacityChart" class="battery-history-chart" viewBox="0 0 400 140" role="img" aria-label="Battery capacity over the last five minutes">
+                  <path id="batteryCapacityZero" class="battery-zero-line"></path>
+                  <path id="batteryCapacityPath" class="metric-chart-line"></path>
+                  <circle id="batteryCapacityDot" r="3" fill="currentColor" visibility="hidden"></circle>
+                </svg>
+                <div class="chart-time-labels"><span>−5 min</span><span>Now</span></div>
+                <p id="batteryCapacityEmpty" class="muted">Waiting for readings</p>
+              </section>
+              <section class="battery-trend">
+                <h4>Battery current · past 5 minutes</h4>
+                <p class="muted">Negative = discharging · Positive = charging</p>
+                <strong id="batteryCurrentLatest">-- A</strong>
+                <p id="batteryCurrentRange" class="muted"></p>
+                <svg id="batteryCurrentChart" class="battery-history-chart" viewBox="0 0 400 140" role="img" aria-label="Battery current over the last five minutes">
+                  <path id="batteryCurrentZero" class="battery-zero-line"></path>
+                  <path id="batteryCurrentPath" class="metric-chart-line"></path>
+                  <circle id="batteryCurrentDot" r="3" fill="currentColor" visibility="hidden"></circle>
+                </svg>
+                <div class="chart-time-labels"><span>−5 min</span><span>Now</span></div>
+                <p id="batteryCurrentEmpty" class="muted">Waiting for readings</p>
+              </section>
+            </div>
+            <p class="muted">Charts collect readings while this page is open. Gaps indicate unavailable data.</p>
           </article>
 
           <article class="panel">

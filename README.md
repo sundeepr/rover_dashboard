@@ -277,3 +277,16 @@ The GPS section includes a Google Maps iframe and an “Open in Google Maps” l
 The map shows a world view without a rover marker when GPS is unavailable.
 Valid coordinates centre the map on the rover and reveal the external map link. The frame only reloads when coordinates change (rounded to six
 decimal places); mock positions retain the section's grey sample styling.
+
+### Battery alerts and trends
+
+JK BLE flags are decoded into messages with the raw bitmask retained. Bit 19
+(password reminder) is a warning, bit 4 (fully charged) is informational, and
+other known or unknown flags remain faults. Electrical faults take priority over
+the password reminder. This severity grouping is a dashboard display policy;
+bit meanings come from the upstream JK02 table.
+
+The battery panel charts charge percentage and signed current over a rolling
+five-minute window. History collects while the page is open, resets on reload,
+logout or source changes, and shows gaps for unavailable readings. Positive
+current means charging; negative means discharging. No prior history is invented.

@@ -627,3 +627,16 @@ button:hover {
     grid-template-columns: 1fr;
   }
 }
+
+.battery-trends { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 20px 0; }
+.battery-trend { min-width: 0; padding: 16px; border: 1px solid var(--panel-border); border-radius: 18px; background: rgba(5, 13, 25, 0.6); }
+.battery-trend h4 { margin: 0 0 8px; }
+.battery-trend p { font-size: 0.8rem; }
+.battery-history-chart { display: block; width: 100%; color: var(--accent); }
+.battery-zero-line { stroke: var(--muted); stroke-dasharray: 4 4; stroke-width: 1; }
+.chart-time-labels { display: flex; justify-content: space-between; color: var(--muted); font-size: 0.75rem; }
+.battery-alert { padding: 12px; border: 1px solid currentColor; border-radius: 10px; }
+.battery-alert.warning, #batteryStatus[data-status="Warning"] { color: var(--warning); background: rgba(255, 209, 102, 0.1); }
+.battery-alert.fault, #batteryStatus[data-status="Fault"] { color: var(--danger); background: rgba(255, 123, 114, 0.1); }
+.battery-alert.info { color: var(--muted); }
+@media (max-width: 640px) { .battery-trends { grid-template-columns: 1fr; } }

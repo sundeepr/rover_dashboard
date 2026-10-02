@@ -23,6 +23,13 @@ def get_battery_snapshot() -> dict[str, Any]:
             result = unavailable_bms(reason)
         else:
             result = normalize_bms_payload(payload, "jk-bms-ble")
+            result["alerts"] = payload.get("alerts", [])
+            result["errorMask"] = payload.get("error_mask", "0x00000000")
+            result["details"].append({"name": "Raw BMS flags", "value": result["errorMask"]})
+            if result["status"] == "Healthy" and any(
+                alert["severity"] == "warning" for alert in result["alerts"]
+            ):
+                result["status"] = "Warning"
         result["updatedAt"] = updated_at
         return result
 
