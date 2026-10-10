@@ -1,3 +1,28 @@
+# Rover Dashboard — Rover Console application
+
+The supported deployment now uses SensorHub and `/telemetry/` behind Rover Console.
+
+On the Jetson with Rover Console installed:
+
+```sh
+sudo ./install.sh
+```
+
+To also rebuild an updated Rover Console checkout:
+
+```sh
+sudo ./install.sh --console-source /path/to/rover-console
+```
+
+The installer handles dependencies, service installation, Caddy routing and app
+registration, and enables startup at boot. It preserves existing dashboard settings.
+
+See [deployment and acceptance checks](docs/CONSOLE.md). The old `server.py` and
+demo login have been removed; use the dedicated loopback service on port 9000.
+
+<details>
+<summary>Historical standalone setup (superseded)</summary>
+
 # Rover Dashboard
 
 Small first iteration of a web-based rover dashboard with a `Flask` backend and a plain HTML, CSS, and JavaScript frontend.
@@ -290,3 +315,5 @@ The battery panel charts charge percentage and signed current over a rolling
 five-minute window. History collects while the page is open, resets on reload,
 logout or source changes, and shows gaps for unavailable readings. Positive
 current means charging; negative means discharging. No prior history is invented.
+
+</details>

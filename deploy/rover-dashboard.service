@@ -1,0 +1,21 @@
+[Unit]
+Description=Rover Dashboard SensorHub telemetry
+After=network.target sensorhub-router.service
+
+[Service]
+User=rover-dashboard
+Group=rover-dashboard
+WorkingDirectory=/opt/rover-dashboard
+EnvironmentFile=/etc/rover-dashboard/dashboard.env
+ExecStart=/opt/rover-dashboard/.venv/bin/gunicorn --bind 127.0.0.1:9000 --workers 1 --threads 32 --timeout 0 dashboard_app:app
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateDevices=true
+
+[Install]
+WantedBy=multi-user.target

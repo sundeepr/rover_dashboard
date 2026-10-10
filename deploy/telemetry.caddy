@@ -1,0 +1,5 @@
+    redir /telemetry /telemetry/ 308
+
+    handle_path /telemetry/* {
+        reverse_proxy 127.0.0.1:9000
+    }

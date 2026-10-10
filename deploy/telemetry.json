@@ -1,0 +1,8 @@
+{
+  "id": "telemetry",
+  "name": "Rover Dashboard",
+  "description": "Live telemetry for this rover",
+  "adapter": "external",
+  "web_path": "/telemetry/",
+  "apply_enabled": false
+}

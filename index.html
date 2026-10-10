@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/telemetry/" />
     <title>Rover Dashboard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -14,49 +15,18 @@
   </head>
   <body>
     <div class="app-shell">
-      <section class="panel auth-panel" id="authPanel">
-        <form id="loginForm" class="auth-form">
-          <label class="field">
-            <span>Username</span>
-            <input
-              id="username"
-              name="username"
-              type="text"
-              autocomplete="username"
-              placeholder="admin or operator"
-              required
-            />
-          </label>
-
-          <label class="field">
-            <span>Password</span>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autocomplete="current-password"
-              placeholder="Enter password"
-              required
-            />
-          </label>
-
-          <button type="submit" class="primary-button">Enter Dashboard</button>
-        </form>
-
-        <p id="authMessage" class="message" aria-live="polite"></p>
-      </section>
-
-      <main class="dashboard hidden" id="dashboard">
+      <main class="dashboard" id="dashboard">
         <header class="hero">
           <div>
             <div class="eyebrow">Mission Status</div>
             <h2>Rover Telemetry</h2>
-            <p id="welcomeText" class="hero-copy"></p>
+            <p id="welcomeText" class="hero-copy">Telemetry supplied by SensorHub</p>
+            <p id="connectionStatus" role="status">Connecting to SensorHub…</p>
           </div>
 
           <div class="hero-actions">
             <span class="badge" id="roleBadge"></span>
-            <button id="logoutButton" class="secondary-button">Log Out</button>
+            <a class="secondary-button" href="/">Rover Console</a>
           </div>
         </header>
 
@@ -132,7 +102,7 @@
             <div class="section-header">
               <div>
                 <h3>Battery Management</h3>
-                <p>JK-BMS telemetry over Bluetooth, ESPHome, or the local simulator.</p>
+                <p>Battery readings and alerts supplied by SensorHub.</p>
               </div>
               <span class="status-pill" id="batteryStatus">--</span>
             </div>
@@ -186,7 +156,7 @@
             <div class="section-header">
               <div>
                 <h3>Connected Devices</h3>
-                <p>USB, cameras, radio, and onboard modules.</p>
+                <p>SensorHub driver health and data availability.</p>
               </div>
             </div>
             <ul id="devicesList" class="data-list"></ul>

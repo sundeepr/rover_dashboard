@@ -1,101 +1,10 @@
-const demoUsers = {
-  admin: {
-    password: "admin123",
-    role: "admin",
-    displayName: "Admin User",
-  },
-  operator: {
-    password: "operator123",
-    role: "user",
-    displayName: "Normal User",
-  },
-};
-
-const mockTelemetry = {
-  sources: { devices: "mock", odometry: "mock" },
-  status: {
-    source: "mock",
-    cpuUsage: "18.2%",
-    memoryUsage: "42.5%",
-    cpuTemp: "58 C",
-    gpuUsage: "21.0%",
-    updatedAt: new Date().toLocaleTimeString(),
-  },
-  devices: [
-    { name: "Stereo Camera", port: "/dev/video0", status: "online" },
-    { name: "Lidar", port: "/dev/ttyUSB0", status: "online" },
-    { name: "GPS", port: "/dev/ttyTHS1", status: "online" },
-    { name: "Motor Controller", port: "can0", status: "online" },
-  ],
-  odometry: {
-    x: "12.48 m",
-    y: "-3.12 m",
-    heading: "42 deg",
-    speed: "0.84 m/s",
-    wheelTicks: "18234",
-    frame: "odom",
-  },
-  sensors: [
-    { name: "IMU", value: "0.02 g", detail: "Roll/Pitch stable" },
-    { name: "GPS", value: "17 sats", detail: "Fix: RTK float" },
-    { name: "Lidar", value: "24.6 m", detail: "Front clearance" },
-    { name: "Ambient", value: "29.4 C", detail: "Board enclosure" },
-  ],
-  jetson: {
-    memoryUsage: {
-      ram: {
-        percent: "42.5%",
-        used: "3.4 GB",
-        total: "8.0 GB",
-        detail: "3.4 GB / 8.0 GB",
-      },
-      gpu: {
-        available: false,
-        value: "Shared with system RAM",
-        detail: "Jetson uses unified memory.",
-      },
-    },
-    details: [],
-  },
-  battery: {
-    available: true,
-    source: "mock",
-    updatedAt: new Date().toLocaleTimeString(),
-    status: "Healthy",
-    state: "Discharging",
-    summary: {
-      capacityRemaining: "82.0%",
-      totalVoltage: "52.67 V",
-      current: "-7.50 A",
-      power: "-395 W",
-      cellDelta: "0.016 V",
-    },
-    temperatures: [
-      { name: "Power Tube", value: "31.0 C" },
-      { name: "Sensor 1", value: "27.0 C" },
-      { name: "Sensor 2", value: "27.8 C" },
-    ],
-    cells: Array.from({ length: 16 }, (_, index) => ({
-      index: index + 1,
-      voltage: `${(3.29 + (index % 4) * 0.003).toFixed(3)} V`,
-      rawVoltage: 3.29 + (index % 4) * 0.003,
-    })),
-    controls: {
-      balancing: "On",
-      charging: "Off",
-      discharging: "On",
-    },
-    details: [],
-  },
-};
-
 const HISTORY_LIMIT = 30;
 const TELEMETRY_POLL_MS = 2000;
 
 const state = {
   currentUser: null,
   baseUrl: getDefaultBaseUrl(),
-  telemetry: mockTelemetry,
+  telemetry: unavailableTelemetry(),
   histories: {
     cpuUsage: [],
     memoryUsage: [],
@@ -106,138 +15,48 @@ const state = {
   pollTimer: null,
 };
 
-const authPanel = document.getElementById("authPanel");
-const dashboard = document.getElementById("dashboard");
-const authMessage = document.getElementById("authMessage");
-const loginForm = document.getElementById("loginForm");
-const logoutButton = document.getElementById("logoutButton");
-const roleBadge = document.getElementById("roleBadge");
-const welcomeText = document.getElementById("welcomeText");
-const adminPanel = document.getElementById("adminPanel");
-
-loginForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-
-  const formData = new FormData(loginForm);
-  const username = String(formData.get("username") || "").trim();
-  const password = String(formData.get("password") || "");
-  authMessage.textContent = "Signing in...";
-
-  const user = await loginUser(username, password);
-
-  if (!user) {
-    authMessage.textContent = "Invalid login. Try one of the demo accounts.";
-    return;
-  }
-
-  state.currentUser = user;
-  authMessage.textContent = "";
-  loginForm.reset();
-  renderSession();
-  await refreshTelemetry();
-  startTelemetryPolling();
-});
-
-logoutButton.addEventListener("click", () => {
-  stopTelemetryPolling();
-  state.currentUser = null;
-  state.baseUrl = getDefaultBaseUrl();
-  state.telemetry = mockTelemetry;
-  resetMetricHistories();
-  batteryHistory.points = [];
-  renderSession();
-});
+function unavailableTelemetry(message = "Waiting for SensorHub") {
+  return {
+    connection: {available: false, message},
+    status: {source: "unavailable", cpuUsage: "Unavailable", memoryUsage: "Unavailable", cpuTemp: "Unavailable", gpuUsage: "Unavailable"},
+    devices: [], odometry: {position: "Unavailable"},
+    sources: {devices: "unavailable", odometry: "unavailable"},
+    battery: {source: "sensorhub", available: false, status: "Unavailable", state: message},
+  };
+}
 
 async function refreshTelemetry() {
-  if (!state.baseUrl) {
-    state.telemetry = {
-      ...mockTelemetry,
-      status: {
-        ...mockTelemetry.status,
-        updatedAt: new Date().toLocaleTimeString(),
-      },
-    };
-    renderTelemetry();
-    return;
-  }
-
   try {
-    const response = await fetch(`${state.baseUrl}/api/telemetry`, {
-      headers: { Accept: "application/json" },
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const telemetry = await response.json();
-    state.telemetry = telemetry;
+    const response = await fetch(`${state.baseUrl}/api/telemetry`, {headers: {Accept: "application/json"}});
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    state.telemetry = await response.json();
   } catch (error) {
-    state.telemetry = {
-      ...mockTelemetry,
-      status: {
-        ...mockTelemetry.status,
-        updatedAt: new Date().toLocaleTimeString(),
-      },
-    };
+    state.telemetry = unavailableTelemetry("Dashboard connection unavailable. Retrying…");
   }
-
   renderTelemetry();
 }
 
-function renderSession() {
-  const signedIn = Boolean(state.currentUser);
-  authPanel.classList.toggle("hidden", signedIn);
-  dashboard.classList.toggle("hidden", !signedIn);
-
-  if (!signedIn) {
-    return;
-  }
-
-  const { displayName, role } = state.currentUser;
-  welcomeText.textContent =
-    `${displayName} is signed in. Monitor rover devices, odometry, and sensor streams from one place.`;
-  roleBadge.textContent = role === "admin" ? "Admin Access" : "Normal Access";
-  adminPanel.classList.toggle("hidden", role !== "admin");
-  renderTelemetry();
-}
-
-async function loginUser(username, password) {
-  if (state.baseUrl) {
-    try {
-      const response = await fetch(`${state.baseUrl}/api/login`, {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ username, password }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        return {
-          username: data.username,
-          role: data.role,
-          displayName: data.displayName,
-        };
-      }
-    } catch (error) {
-      authMessage.textContent =
-        "Backend login unavailable. Using local demo accounts.";
-    }
-  }
-
-  const demoUser = demoUsers[username];
-  if (!demoUser || demoUser.password !== password) {
-    return null;
-  }
-
-  return { username, ...demoUser };
+let telemetrySocket;
+let reconnectTimer;
+function connectLiveUpdates() {
+  const url = new URL(`${state.baseUrl}/ws`);
+  url.protocol = location.protocol === "https:" ? "wss:" : "ws:";
+  telemetrySocket = new WebSocket(url);
+  telemetrySocket.onopen = () => { stopTelemetryPolling(); };
+  telemetrySocket.onmessage = (event) => {
+    try { state.telemetry = JSON.parse(event.data); renderTelemetry(); } catch (error) { telemetrySocket.close(); }
+  };
+  telemetrySocket.onclose = () => {
+    state.telemetry = unavailableTelemetry("Live connection lost. Reconnecting…");
+    renderTelemetry();
+    startTelemetryPolling();
+    reconnectTimer = window.setTimeout(connectLiveUpdates, 3000);
+  };
 }
 
 function renderTelemetry() {
   const { status, devices, odometry } = state.telemetry;
+  setText("connectionStatus", state.telemetry.connection?.message || "SensorHub telemetry");
   const metricSource = status.source || "mock";
   if (state.metricSource !== metricSource) {
     resetMetricHistories();
@@ -269,10 +88,10 @@ function renderTelemetry() {
         <li>
           <div class="list-row">
             <div>
-              <strong>${device.name}</strong>
-              <span>${device.port}</span>
+              <strong>${escapeHtml(device.name)}</strong>
+              <span>${escapeHtml(device.port)}</span>
             </div>
-            <span class="device-status">${device.status}</span>
+            <span class="device-status ${device.available ? "" : "device-unavailable"}">${escapeHtml(device.status)}</span>
           </div>
         </li>
       `,
@@ -306,19 +125,12 @@ function formatLabel(key) {
 }
 
 function getDefaultBaseUrl() {
-  if (window.location.protocol.startsWith("http")) {
-    return window.location.origin;
-  }
-
-  return "http://127.0.0.1:6060";
+  return new URL("/telemetry", window.location.origin).href;
 }
 
 function startTelemetryPolling() {
   stopTelemetryPolling();
 
-  if (!state.currentUser) {
-    return;
-  }
 
   state.pollTimer = window.setInterval(() => {
     refreshTelemetry();
@@ -461,8 +273,8 @@ function renderDetailedJetsonStats(details) {
     .map(
       (item) => `
         <article class="detail-stat ${shouldShowDetailTrendline(item.name) ? "detail-stat-trend" : ""}">
-          <span>${item.name}</span>
-          <strong>${item.value}</strong>
+          <span>${escapeHtml(item.name)}</span>
+          <strong>${escapeHtml(item.value)}</strong>
           ${
             shouldShowDetailTrendline(item.name)
               ? `<svg class="detail-chart" viewBox="0 0 240 56" preserveAspectRatio="none">
@@ -484,7 +296,7 @@ function renderDetailedJetsonStats(details) {
 }
 
 function renderBatteryManagement(battery) {
-  const payload = battery || mockTelemetry.battery;
+  const payload = battery || unavailableTelemetry().battery;
   markSection("batterySummaryGrid", payload.available === false ? "unavailable" : payload.source || "mock");
   const capacityValue = parsePercent(payload.summary?.capacityRemaining);
   const capacity = capacityValue === null ? 0 : capacityValue;
@@ -744,3 +556,17 @@ function renderBatteryHistory(payload) {
     document.getElementById(`battery${key}Empty`).classList.toggle("hidden", values.length > 0);
   }
 }
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"}[c]));
+}
+document.getElementById("roleBadge").textContent = "SensorHub";
+renderTelemetry();
+refreshTelemetry();
+startTelemetryPolling();
+connectLiveUpdates();
+window.addEventListener("pagehide", () => {
+  window.clearTimeout(reconnectTimer);
+  stopTelemetryPolling();
+  if (telemetrySocket) { telemetrySocket.onclose = null; telemetrySocket.close(); }
+});
