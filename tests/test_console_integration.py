@@ -59,6 +59,52 @@ class AdapterTests(unittest.TestCase):
         self.adapter.hub.put('gps','fix',{'fix':True,'latitude':12.9,'longitude':77.6,'altitude_m':920})
         self.assertEqual(self.adapter.snapshot()['gps']['altitude'], 920)
 
+    def test_gps_diagnostics_without_fix_and_invalid_coordinates(self):
+        self.adapter.hub.put('gps', 'fix', {'fix': False, 'satellites_used': 0,
+                                         'satellites_in_view': 8, 'fix_type': 'none'})
+        gps = self.adapter.snapshot()['gps']
+        self.assertTrue(gps['receiving'])
+        self.assertFalse(gps['available'])
+        self.assertEqual(gps['satellitesInView'], 8)
+        self.assertEqual(gps['reason'], 'Waiting for GPS fix')
+        for lat, lon in [(91, 77), (12, float('nan')), (True, 77)]:
+            self.adapter.hub.put('gps', 'fix', {'fix': True, 'latitude': lat, 'longitude': lon})
+            gps = self.adapter.snapshot()['gps']
+            self.assertFalse(gps['available'])
+            self.assertIsNone(gps['latitude'])
+
+    def test_gps_speed_and_imu_orientation_units(self):
+        self.adapter.hub.put('gps', 'fix', {'fix': True, 'latitude': 0, 'longitude': 0,
+                                         'speed_mps': 1.2, 'course_deg': 45, 'hdop': .9})
+        self.adapter.hub.put('imu', 'data', {'euler_deg': {'roll': -2, 'pitch': 3, 'yaw': 90},
+            'heading_deg': 90, 'compass': 'E', 'accel_mps2': {'x': 0, 'y': 0, 'z': 9.81},
+            'gyro_rads': {'x': 0, 'y': 0, 'z': .2}, 'mag_ut': None, 'mag_accuracy': 0})
+        data = self.adapter.snapshot()
+        self.assertTrue(data['gps']['available'])
+        self.assertEqual(data['gps']['speed'], 1.2)
+        self.assertEqual(data['gps']['course'], 45)
+        imu = data['imu']
+        self.assertTrue(imu['available'])
+        self.assertEqual(imu['data']['euler_deg']['roll'], -2)
+        self.assertEqual(imu['data']['accel_mps2']['z'], 9.81)
+        self.assertEqual(imu['data']['gyro_rads']['z'], .2)
+        self.assertEqual(imu['data']['mag_accuracy'], 0)
+        self.assertIsNone(imu['data']['mag_ut']['x'])
+        self.assertIsNotNone(imu['updatedAt'])
+
+    def test_gps_imu_expire_and_custom_instance_names(self):
+        self.adapter.instances.update(gps='position', imu='orientation')
+        for key, name, stream, fields, max_age in [
+                ('gps', 'position', 'fix', {'fix': True, 'latitude': 12, 'longitude': 77}, 5),
+                ('imu', 'orientation', 'data', {'heading_deg': 0}, 2)]:
+            self.adapter.hub.put(name, stream, fields)
+            self.assertTrue(self.adapter.snapshot()[key]['available'])
+            for age, heartbeat_age, state in [(max_age + .1, 0, 'running'), (0, 6, 'running'), (0, 0, 'degraded')]:
+                self.adapter.hub.put(name, stream, fields, age=age, heartbeat_age=heartbeat_age, state=state)
+                payload = self.adapter.snapshot()[key]
+                self.assertFalse(payload['available'])
+                self.assertIsNotNone(payload['reason'])
+
     def test_jetson_mapping_nulls(self):
         self.adapter.hub.put('jetson','stats',{'cpu':{'cores':[{'usage_pct':10},{'usage_pct':30}]},
              'memory':{'ram_used_mb':100,'ram_total_mb':400},'temps_c':{'cpu':None},'gpu':{'usage_pct':12}})

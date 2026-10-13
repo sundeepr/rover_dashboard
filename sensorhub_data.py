@@ -114,13 +114,39 @@ class SensorHubTelemetry:
             battery_payload.update(alerts=alerts, errorMask=f"0x{data.get('error_mask', 0):08X}", updatedAt=timestamp(battery))
             if battery_payload['status'] == 'Healthy' and any(a['severity'] == 'warning' for a in alerts):
                 battery_payload['status'] = 'Warning'
-        gps_payload = {'available': False, 'source': 'unavailable', 'reason': gps_reason, 'latitude': None, 'longitude': None}
+        gps_payload = {'available': False, 'receiving': gps is not None, 'source': 'unavailable',
+                       'reason': gps_reason, 'latitude': None, 'longitude': None, 'updatedAt': None}
         if gps:
             data = gps.data
-            gps_payload = dict(available=data.get('fix') is True, source='sensorhub',
-                               latitude=data.get('latitude'), longitude=data.get('longitude'),
-                               altitude=data.get('altitude_m'), satellites=data.get('satellites_used'),
-                               fix=data.get('fix_type'), updatedAt=timestamp(gps), reason='Waiting for GPS fix')
+            lat, lon = number(data.get('latitude')), number(data.get('longitude'))
+            coordinates_valid = lat is not None and lon is not None and abs(lat) <= 90 and abs(lon) <= 180
+            available = data.get('fix') is True and coordinates_valid
+            gps_payload.update(available=available, source='sensorhub',
+                               latitude=lat if available else None, longitude=lon if available else None,
+                               altitude=number(data.get('altitude_m')) if available else None,
+                               speed=number(data.get('speed_mps')) if available else None,
+                               course=number(data.get('course_deg')) if available else None,
+                               satellites=number(data.get('satellites_used')),
+                               satellitesInView=number(data.get('satellites_in_view')),
+                               hdop=number(data.get('hdop')), fix=data.get('fix_type'),
+                               fixQuality=number(data.get('fix_quality')), updatedAt=timestamp(gps),
+                               reason=None if available else ('Invalid GPS coordinates' if data.get('fix') is True
+                                                              else 'Waiting for GPS fix'))
+        imu_payload = {'available': False, 'source': 'unavailable', 'reason': imu_reason,
+                       'updatedAt': None, 'data': None}
+        if imu:
+            data = imu.data
+            reading = {key: {axis: number((data.get(key) or {}).get(axis)) for axis in axes}
+                       for key, axes in [('euler_deg', ('roll', 'pitch', 'yaw')),
+                                         ('quaternion', ('w', 'x', 'y', 'z')),
+                                         *[(key, ('x', 'y', 'z')) for key in
+                                           ('accel_mps2', 'gyro_rads', 'mag_ut', 'linear_accel_mps2', 'gravity_mps2')]]}
+            valid = any(value is not None for vector in reading.values() for value in vector.values())
+            reading.update(heading_deg=number(data.get('heading_deg')), compass=data.get('compass'),
+                           mag_accuracy=number(data.get('mag_accuracy')))
+            valid = valid or reading['heading_deg'] is not None
+            imu_payload.update(available=valid, source='sensorhub' if valid else 'unavailable',
+                               reason=None if valid else 'No valid IMU readings', updatedAt=timestamp(imu), data=reading)
         devices = []
         for key, message, reason in [('battery', battery, battery_reason), ('gps', gps, gps_reason),
                                      ('jetson', jetson, jetson_reason), ('imu', imu, imu_reason)]:
@@ -131,4 +157,4 @@ class SensorHubTelemetry:
                 'devices': devices, 'sources': {'devices': 'sensorhub' if any((battery, gps, jetson, imu)) else 'unavailable', 'odometry': 'unavailable'},
                 'odometry': {'x': '--', 'y': '--', 'heading': '--',
                              'speed': '--', 'wheelTicks': '--', 'frame': '--'},
-                'sensors': [], 'imu': {'available': imu is not None, 'data': imu.data if imu else None}}
+                'sensors': [], 'imu': imu_payload}

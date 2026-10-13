@@ -53,6 +53,31 @@ Existing Caddy authentication covers all telemetry routes, including WebSocket u
 The dashboard has no second demo login. The backend binds only loopback and should
 not be exposed directly. HTTP follows the console's existing local-network setup.
 
+## GPS and IMU
+
+The dashboard reads `hub/sensors/gps/fix` (NMEA GPS) and
+`hub/sensors/imu/data` (BNO08x), plus each instance's driver status heartbeat.
+The GPS map uses valid fresh coordinates; without a fix it keeps the world view
+and shows available satellite/fix diagnostics. To avoid jitter, the map recenters
+only after at least 10 metres of movement from its last displayed location and
+at least 15 seconds since its last update. Coordinates and the external Maps
+link still update on every reading; the first valid fix displays immediately. GPS speed is in m/s and course
+is in degrees. The IMU panel displays roll/pitch/yaw, heading, quaternion,
+acceleration, angular velocity, magnetic field, gravity and calibration accuracy.
+Optional missing readings display `--`; stale data clears the live readings.
+
+For different SensorHub instance names, set these in
+`/etc/rover-dashboard/dashboard.env` (names are instance IDs, not driver types):
+
+```sh
+SENSORHUB_GPS_INSTANCE=gps
+SENSORHUB_IMU_INSTANCE=imu
+```
+
+Restart `rover-dashboard` after changes. SensorHub retains all serial/I2C access;
+the dashboard only subscribes to messages. Check the `gps` and `imu` objects in
+`/telemetry/api/telemetry` for availability and diagnostic reasons.
+
 ## Acceptance on the rover
 
 - Sign into `http://<rover-ip>/`, select Rover Dashboard, choose Open dashboard.

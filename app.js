@@ -55,6 +55,7 @@ function renderTelemetry() {
   markSection("odometryGrid", state.telemetry.sources?.odometry || "mock");
   markSection("jetsonStatsGrid", state.telemetry.jetson?.available ? state.telemetry.jetson.source : "unavailable");
   renderGps(state.telemetry.gps);
+  renderImu(state.telemetry.imu);
 
   setText("cpuUsageValue", status.cpuUsage);
   setText("memoryUsageValue", status.memoryUsage);
@@ -336,17 +337,25 @@ function renderGps(gps) {
     && Number.isFinite(gps.longitude) && Math.abs(gps.longitude) <= 180;
   const available = gps?.available === true && validCoordinates;
   markSection("gpsGrid", available ? gps.source || "unavailable" : "unavailable");
-  setText("gpsMessage", available ? "Position reported by the rover GPS receiver." : "World view · Waiting for rover GPS data.");
+  setText("gpsMessage", available ? "Position reported by the rover GPS receiver." : `World view · ${gps?.reason || "Waiting for rover GPS data"}.`);
   renderGpsMap(gps, available);
   const items = [
     ["Latitude", available ? `${gps.latitude.toFixed(6)}°` : "--"],
     ["Longitude", available ? `${gps.longitude.toFixed(6)}°` : "--"],
     ["Altitude", available && Number.isFinite(gps.altitude) ? `${gps.altitude} m` : "--"],
-    ["Satellites", available ? gps.satellites ?? "--" : "--"],
-    ["Fix", available ? gps.fix ?? "--" : "--"],
-    ["Last update", available ? gps.updatedAt ?? "--" : "--"],
+    ["Speed", available && Number.isFinite(gps.speed) ? `${gps.speed.toFixed(2)} m/s` : "--"],
+    ["Course over ground", available && Number.isFinite(gps.course) ? `${gps.course.toFixed(1)}°` : "--"],
+    ["Satellites used / in view", gps?.receiving ? `${gps.satellites ?? "--"} / ${gps.satellitesInView ?? "--"}` : "--"],
+    ["Fix", gps?.receiving ? gps.fix ?? (available ? "Valid" : "No fix") : "--"],
+    ["Fix quality", gps?.receiving ? gps.fixQuality ?? "--" : "--"],
+    ["HDOP", gps?.receiving ? gps.hdop ?? "--" : "--"],
+    ["Last update", gps?.receiving ? gps.updatedAt ?? "--" : "--"],
   ];
-  const grid = document.getElementById("gpsGrid");
+  renderReadingGrid("gpsGrid", items);
+}
+
+function renderReadingGrid(id, items) {
+  const grid = document.getElementById(id);
   grid.replaceChildren(...items.map(([label, value]) => {
     const card = document.createElement("div");
     card.className = "stat";
@@ -359,18 +368,62 @@ function renderGps(gps) {
   }));
 }
 
+function renderImu(imu) {
+  const available = imu?.available === true;
+  markSection("imuGrid", available ? imu.source : "unavailable");
+  setText("imuMessage", available ? `SensorHub IMU · ${imu.updatedAt || "--"}` : imu?.reason || "Waiting for SensorHub IMU data");
+  const data = available ? imu.data || {} : {};
+  const value = (v, unit = "", digits = 2) => Number.isFinite(v) ? `${v.toFixed(digits)}${unit}` : "--";
+  const vector = key => ["x", "y", "z"].map(axis => `${axis.toUpperCase()} ${value(data[key]?.[axis])}`).join(" · ");
+  const items = [
+    ["Roll", value(data.euler_deg?.roll, "°")],
+    ["Pitch", value(data.euler_deg?.pitch, "°")],
+    ["Yaw", value(data.euler_deg?.yaw, "°")],
+    ["IMU heading", `${value(data.heading_deg, "°")} ${data.compass || ""}`],
+    ["Acceleration (m/s²)", vector("accel_mps2")],
+    ["Angular velocity (rad/s)", vector("gyro_rads")],
+    ["Magnetic field (µT)", vector("mag_ut")],
+    ["Linear acceleration (m/s²)", vector("linear_accel_mps2")],
+    ["Gravity (m/s²)", vector("gravity_mps2")],
+    ["Quaternion (w, x, y, z)", ["w", "x", "y", "z"].map(axis => value(data.quaternion?.[axis], "", 4)).join(", ")],
+    ["Magnetometer accuracy", ["Unreliable", "Low", "Medium", "High"][data.mag_accuracy] || "--"],
+  ];
+  renderReadingGrid("imuGrid", items);
+}
+
+// Reloading the Google Maps iframe resets its view. Ignore receiver noise and
+// rate-limit real movement, measuring from the last displayed position so slow
+// movement eventually updates too. Numeric readings and the link stay current.
+const gpsMapPosition = {latitude: null, longitude: null, updatedAt: null};
+const GPS_MAP_MIN_DISTANCE_M = 10;
+const GPS_MAP_MIN_INTERVAL_MS = 15000;
+
+function gpsDistanceMeters(a, b) {
+  const radians = degrees => degrees * Math.PI / 180;
+  const dLat = radians(b.latitude - a.latitude);
+  const dLon = radians(b.longitude - a.longitude);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(radians(a.latitude))
+    * Math.cos(radians(b.latitude)) * Math.sin(dLon / 2) ** 2;
+  return 6371000 * 2 * Math.asin(Math.sqrt(Math.min(1, Math.max(0, h))));
+}
+
 function renderGpsMap(gps, available) {
   const frame = document.getElementById("gpsMapFrame");
   const link = document.getElementById("gpsMapLink");
   link.classList.toggle("hidden", !available);
   const coordinates = available
     ? `${gps.latitude.toFixed(6)},${gps.longitude.toFixed(6)}` : null;
-  const mapUrl = available
-    ? `https://www.google.com/maps?q=${encodeURIComponent(coordinates)}&z=18&output=embed`
-    : "https://www.google.com/maps?ll=0,0&z=2&output=embed";
-  // Preserve map interaction across polling updates when the position is unchanged.
-  if (frame.getAttribute("src") !== mapUrl) {
-    frame.src = mapUrl;
+  const now = performance.now();
+  const firstFix = gpsMapPosition.latitude === null;
+  const moved = available && !firstFix && gpsDistanceMeters(gpsMapPosition, gps) >= GPS_MAP_MIN_DISTANCE_M;
+  if (!available || firstFix || (moved && now - gpsMapPosition.updatedAt >= GPS_MAP_MIN_INTERVAL_MS)) {
+    const mapUrl = available
+      ? `https://www.google.com/maps?q=${encodeURIComponent(coordinates)}&z=18&output=embed`
+      : "https://www.google.com/maps?ll=0,0&z=2&output=embed";
+    if (frame.getAttribute("src") !== mapUrl) frame.src = mapUrl;
+    gpsMapPosition.latitude = available ? gps.latitude : null;
+    gpsMapPosition.longitude = available ? gps.longitude : null;
+    gpsMapPosition.updatedAt = available ? now : null;
   }
   if (available) {
     link.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(coordinates)}`;
