@@ -311,9 +311,23 @@ other known or unknown flags remain faults. Electrical faults take priority over
 the password reminder. This severity grouping is a dashboard display policy;
 bit meanings come from the upstream JK02 table.
 
-The battery panel charts charge percentage and signed current over a rolling
-five-minute window. History collects while the page is open, resets on reload,
-logout or source changes, and shows gaps for unavailable readings. Positive
-current means charging; negative means discharging. No prior history is invented.
+The battery panel charts charge percentage over 48 hours, and signed current and
+signed power over five minutes. Current uses a fixed −50 to +50 A scale; values outside the scale
+are clipped on the chart and labeled, while the numeric reading stays exact.
+Capacity uses 0–100%; power uses an automatic symmetric watts scale. Positive
+current/power means charging; negative means discharging.
+
+The dashboard worker samples SensorHub every two seconds, even with no browser
+connected. HTTP telemetry snapshots and every WebSocket message include the same
+server-owned history: 48 hours for battery capacity, five minutes for current,
+power, system and Jetson detail charts. Capacity retains the latest reading per
+minute (at most 2,881 points); a minute containing unavailable readings is shown
+as a gap. The current capacity number still updates every two seconds.
+Unavailable readings create gaps. History uses bounded memory and monotonic time
+for retention; browser reconnects preserve it, but restarting the dashboard clears
+it. Run one Gunicorn worker without `--preload`, as in the supplied service.
+No SensorHub changes or hardware connections are needed.
+
+History checks: `python -m unittest discover -s tests` and `node tests/charts.cjs`.
 
 </details>

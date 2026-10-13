@@ -1,17 +1,9 @@
-const HISTORY_LIMIT = 30;
 const TELEMETRY_POLL_MS = 2000;
 
 const state = {
   currentUser: null,
   baseUrl: getDefaultBaseUrl(),
   telemetry: unavailableTelemetry(),
-  histories: {
-    cpuUsage: [],
-    memoryUsage: [],
-    cpuTemp: [],
-    gpuUsage: [],
-  },
-  detailHistories: {},
   pollTimer: null,
 };
 
@@ -58,10 +50,6 @@ function renderTelemetry() {
   const { status, devices, odometry } = state.telemetry;
   setText("connectionStatus", state.telemetry.connection?.message || "SensorHub telemetry");
   const metricSource = status.source || "mock";
-  if (state.metricSource !== metricSource) {
-    resetMetricHistories();
-    state.metricSource = metricSource;
-  }
   markSection("metricsGrid", metricSource);
   markSection("devicesList", state.telemetry.sources?.devices || "mock");
   markSection("odometryGrid", state.telemetry.sources?.odometry || "mock");
@@ -72,10 +60,6 @@ function renderTelemetry() {
   setText("memoryUsageValue", status.memoryUsage);
   setText("cpuTempValue", status.cpuTemp);
   setText("gpuUsageValue", status.gpuUsage);
-  updateMetricHistory("cpuUsage", status.cpuUsage, status.updatedAt);
-  updateMetricHistory("memoryUsage", status.memoryUsage, status.updatedAt);
-  updateMetricHistory("cpuTemp", status.cpuTemp, status.updatedAt);
-  updateMetricHistory("gpuUsage", status.gpuUsage, status.updatedAt);
   renderMetricChart("cpuUsage");
   renderMetricChart("memoryUsage");
   renderMetricChart("cpuTemp");
@@ -144,80 +128,37 @@ function stopTelemetryPolling() {
   }
 }
 
-function resetMetricHistories() {
-  state.histories = {
-    cpuUsage: [],
-    memoryUsage: [],
-    cpuTemp: [],
-    gpuUsage: [],
-  };
-  state.detailHistories = {};
+// All charts render the shared backend window; rendering never adds samples.
+function historyPoints(group, key) {
+  return (state.telemetry.history?.samples || []).map(point => ({
+    time: point.time, value: point[group]?.[key] ?? null,
+    source: group === "battery" ? point.batterySource : point.statusSource,
+  }));
 }
 
-function updateMetricHistory(metricKey, rawValue, updatedAt) {
-  const value = metricKey === "cpuTemp" ? parseTemperature(rawValue) : parsePercent(rawValue);
-  if (value === null) {
-    return;
+function chartPaths(points, low, high, width, bottom, top, padding = 0, history = state.telemetry.history, maxGapMs = 6000) {
+  if (!history) return {line: "", area: "", last: null};
+  const y = value => bottom - (Math.max(low, Math.min(high, value)) - low) / (high - low) * (bottom - top);
+  let line = "", area = "", previous = null, last = null;
+  for (const point of points) {
+    if (!Number.isFinite(point.value)) { previous = null; continue; }
+    const x = padding + (point.time - (history.now - history.windowMs)) / history.windowMs * (width - 2 * padding);
+    const py = y(point.value);
+    const move = !previous || point.time - previous.time > maxGapMs || point.source !== previous.source;
+    line += `${move ? "M" : "L"} ${x.toFixed(2)} ${py.toFixed(2)} `;
+    if (!move) area += `M ${previous.x} ${bottom} L ${previous.x} ${previous.y} L ${x} ${py} L ${x} ${bottom} Z `;
+    previous = {...point, x, y: py};
+    last = {x, y: py};
   }
-
-  const history = state.histories[metricKey];
-  const latestPoint = history.at(-1);
-  if (latestPoint && latestPoint.label === updatedAt && latestPoint.value === value) {
-    return;
-  }
-
-  history.push({
-    value,
-    label: updatedAt || new Date().toLocaleTimeString(),
-  });
-
-  if (history.length > HISTORY_LIMIT) {
-    state.histories[metricKey] = history.slice(-HISTORY_LIMIT);
-  }
+  return {line, area, last};
 }
 
 function renderMetricChart(metricKey) {
-  const line = document.getElementById(`${metricKey}Line`);
-  const area = document.getElementById(`${metricKey}Area`);
-  const history = state.histories[metricKey];
-
-  if (!line || !area) {
-    return;
-  }
-
-  if (history.length < 2) {
-    line.setAttribute("d", "");
-    area.setAttribute("d", "");
-    return;
-  }
-
-  const width = 240;
-  const height = 72;
-  const bottom = height - 6;
-  const top = 6;
-  const usableHeight = bottom - top;
-  const stepX = width / Math.max(history.length - 1, 1);
-  const maxValue = metricKey === "cpuTemp" ? Math.max(...history.map((point) => point.value), 70) : 100;
-
-  const points = history.map((point, index) => {
-    const x = index * stepX;
-    const y = bottom - (point.value / maxValue) * usableHeight;
-    return { x, y };
-  });
-
-  const linePath = points
-    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`)
-    .join(" ");
-
-  const areaPath = [
-    `M ${points[0].x.toFixed(2)} ${bottom.toFixed(2)}`,
-    ...points.map((point) => `L ${point.x.toFixed(2)} ${point.y.toFixed(2)}`),
-    `L ${points.at(-1).x.toFixed(2)} ${bottom.toFixed(2)}`,
-    "Z",
-  ].join(" ");
-
-  line.setAttribute("d", linePath);
-  area.setAttribute("d", areaPath);
+  const points = historyPoints("status", metricKey);
+  const max = metricKey === "cpuTemp" ? Math.max(70, ...points.map(p => p.value ?? 0)) : 100;
+  const paths = chartPaths(points, 0, max, 240, 66, 6);
+  document.getElementById(`${metricKey}Line`)?.setAttribute("d", paths.line);
+  document.getElementById(`${metricKey}Area`)?.setAttribute("d", paths.area);
 }
 
 function parsePercent(value) {
@@ -262,12 +203,6 @@ function renderDetailedJetsonStats(details) {
     `;
     return;
   }
-
-  items.forEach((item) => {
-    if (shouldShowDetailTrendline(item.name)) {
-      updateDetailHistory(item.name, item.value);
-    }
-  });
 
   statsGrid.innerHTML = items
     .map(
@@ -367,60 +302,12 @@ function shouldShowDetailTrendline(name) {
   return normalizedName === "ram" || normalizedName.startsWith("temp ");
 }
 
-function updateDetailHistory(name, rawValue) {
-  const normalizedName = String(name || "");
-  const value = normalizedName.toLowerCase() === "ram" ? parsePercent(rawValue) : parseTemperature(rawValue);
-  if (value === null) {
-    return;
-  }
-
-  const history = state.detailHistories[normalizedName] || [];
-  history.push(value);
-  state.detailHistories[normalizedName] = history.slice(-HISTORY_LIMIT);
-}
-
 function renderDetailChart(name) {
-  const chartId = detailChartId(name);
-  const line = document.getElementById(`${chartId}Line`);
-  const area = document.getElementById(`${chartId}Area`);
-  const history = state.detailHistories[String(name)] || [];
-
-  if (!line || !area || history.length < 2) {
-    if (line) {
-      line.setAttribute("d", "");
-    }
-    if (area) {
-      area.setAttribute("d", "");
-    }
-    return;
-  }
-
-  const width = 240;
-  const height = 56;
-  const bottom = height - 4;
-  const top = 4;
-  const usableHeight = bottom - top;
-  const stepX = width / Math.max(history.length - 1, 1);
-  const maxValue = String(name).toLowerCase() === "ram" ? 100 : Math.max(...history, 70);
-
-  const points = history.map((value, index) => {
-    const x = index * stepX;
-    const y = bottom - (value / maxValue) * usableHeight;
-    return { x, y };
-  });
-
-  const linePath = points
-    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`)
-    .join(" ");
-  const areaPath = [
-    `M ${points[0].x.toFixed(2)} ${bottom.toFixed(2)}`,
-    ...points.map((point) => `L ${point.x.toFixed(2)} ${point.y.toFixed(2)}`),
-    `L ${points.at(-1).x.toFixed(2)} ${bottom.toFixed(2)}`,
-    "Z",
-  ].join(" ");
-
-  line.setAttribute("d", linePath);
-  area.setAttribute("d", areaPath);
+  const points = historyPoints("details", name);
+  const max = name.toLowerCase() === "ram" ? 100 : Math.max(70, ...points.map(p => p.value ?? 0));
+  const paths = chartPaths(points, 0, max, 240, 52, 4);
+  document.getElementById(`${detailChartId(name)}Line`)?.setAttribute("d", paths.line);
+  document.getElementById(`${detailChartId(name)}Area`)?.setAttribute("d", paths.area);
 }
 
 function detailChartId(name) {
@@ -492,9 +379,6 @@ function renderGpsMap(gps, available) {
   }
 }
 
-const batteryHistory = { source: null, points: [], lastStamp: null };
-const BATTERY_WINDOW_MS = 5 * 60 * 1000;
-
 function renderBatteryAlerts(payload) {
   const container = document.getElementById("batteryAlerts");
   const alerts = Array.isArray(payload.alerts) ? payload.alerts : [];
@@ -508,51 +392,26 @@ function renderBatteryAlerts(payload) {
 }
 
 function renderBatteryHistory(payload) {
-  const now = Date.now();
-  // Clear samples when switching between real, simulated and mock sources.
-  if (batteryHistory.source !== payload.source) {
-    batteryHistory.points = [];
-    batteryHistory.lastStamp = null;
-    batteryHistory.source = payload.source;
-  }
-  batteryHistory.points = batteryHistory.points.filter((point) => point.time >= now - BATTERY_WINDOW_MS);
-  const available = payload.available === true;
-  const stamp = payload.updatedAt;
-  if (!available || !stamp || stamp !== batteryHistory.lastStamp) {
-    const capacity = available ? Number.parseFloat(payload.summary?.capacityRemaining) : NaN;
-    const current = available ? Number.parseFloat(payload.summary?.current) : NaN;
-    batteryHistory.points.push({ time: now,
-      Capacity: Number.isFinite(capacity) && capacity >= 0 && capacity <= 100 ? capacity : null,
-      Current: Number.isFinite(current) ? current : null });
-    batteryHistory.lastStamp = stamp;
-  }
-  for (const key of ["Capacity", "Current"]) {
-    const points = batteryHistory.points;
-    const values = points.map((p) => p[key]).filter((value) => value !== null);
-    const unit = key === "Capacity" ? "%" : "A";
-    const latest = available ? Number.parseFloat(key === "Capacity" ? payload.summary?.capacityRemaining : payload.summary?.current) : NaN;
+  for (const [key, field, unit] of [["Capacity", "capacityRemaining", "%"], ["Current", "current", "A"], ["Power", "power", "W"]]) {
+    const history = key === "Capacity"
+      ? {...state.telemetry.history?.capacity, now: state.telemetry.history?.now}
+      : state.telemetry.history;
+    const points = key === "Capacity" ? (history.samples || []) : historyPoints("battery", key);
+    const values = points.map(p => p.value).filter(Number.isFinite);
+    const latest = payload.available ? Number.parseFloat(payload.summary?.[field]) : NaN;
     setText(`battery${key}Latest`, Number.isFinite(latest) ? `${latest.toFixed(1)} ${unit}` : "Unavailable");
-    const extent = Math.max(1, ...values.map(Math.abs)) * 1.1;
-    const low = key === "Capacity" ? 0 : -extent;
-    const high = key === "Capacity" ? 100 : extent;
-    setText(`battery${key}Range`, `Scale: ${low.toFixed(0)} to ${high.toFixed(0)} ${unit}`);
-    const y = (value) => 132 - (value - low) / (high - low) * 124;
-    let path = "";
-    let previous = null;
-    let last = null;
-    for (const point of points) {
-      if (point[key] === null) { previous = null; continue; }
-      const x = 8 + (point.time - (now - BATTERY_WINDOW_MS)) / BATTERY_WINDOW_MS * 384;
-      const move = !previous || point.time - previous.time > 20000;
-      path += `${move ? "M" : "L"} ${x.toFixed(2)} ${y(point[key]).toFixed(2)} `;
-      previous = point;
-      last = { x, y: y(point[key]) };
-    }
-    document.getElementById(`battery${key}Path`).setAttribute("d", path);
-    document.getElementById(`battery${key}Zero`).setAttribute("d", `M 8 ${y(0)} L 392 ${y(0)}`);
+    const extent = Math.ceil(Math.max(1, ...values.map(Math.abs)) * 1.1);
+    const low = key === "Capacity" ? 0 : key === "Current" ? -50 : -extent;
+    const high = key === "Capacity" ? 100 : key === "Current" ? 50 : extent;
+    const clipped = values.some(value => value < low || value > high);
+    setText(`battery${key}Range`, `Scale: ${low} to ${high} ${unit}${clipped ? " · Values outside scale clipped" : ""}`);
+    const paths = chartPaths(points, low, high, 400, 132, 8, 8, history, key === "Capacity" ? 90000 : 6000);
+    document.getElementById(`battery${key}Path`).setAttribute("d", paths.line);
+    const zero = 132 - (0 - low) / (high - low) * 124;
+    document.getElementById(`battery${key}Zero`).setAttribute("d", `M 8 ${zero} L 392 ${zero}`);
     const dot = document.getElementById(`battery${key}Dot`);
-    dot.setAttribute("visibility", last ? "visible" : "hidden");
-    if (last) { dot.setAttribute("cx", last.x); dot.setAttribute("cy", last.y); }
+    dot.setAttribute("visibility", paths.last ? "visible" : "hidden");
+    if (paths.last) { dot.setAttribute("cx", paths.last.x); dot.setAttribute("cy", paths.last.y); }
     document.getElementById(`battery${key}Empty`).classList.toggle("hidden", values.length > 0);
   }
 }

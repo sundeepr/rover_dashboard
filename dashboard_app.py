@@ -6,11 +6,13 @@ from urllib.parse import urlsplit
 from flask import Flask, abort, jsonify, request, send_from_directory
 from flask_sock import Sock
 from sensorhub_data import SensorHubTelemetry
+from telemetry_history import TelemetryHistory
 
 DIST = Path(__file__).resolve().parent / 'dist'
 app = Flask(__name__, static_folder=None)
 sock = Sock(app)
-telemetry = SensorHubTelemetry()
+telemetry = TelemetryHistory(SensorHubTelemetry())
+telemetry.start()
 app.config['SOCK_SERVER_OPTIONS'] = {'ping_interval': 25}
 
 
@@ -29,7 +31,6 @@ def battery():
     return jsonify(telemetry.snapshot()['battery'])
 
 
-@sock.route('/ws')
 def live(ws):
     origin = request.headers.get('Origin')
     if origin and urlsplit(origin).netloc != request.host:
@@ -39,6 +40,9 @@ def live(ws):
         ws.send(json.dumps(telemetry.snapshot()))
         # Wait on the socket so peer close is detected even when no telemetry arrives.
         ws.receive(timeout=2)
+
+
+sock.route('/ws')(live)
 
 
 @app.get('/')

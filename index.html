@@ -123,16 +123,16 @@
             <div id="batteryCellsGrid" class="battery-cells-grid"></div>
             <div class="battery-trends">
               <section class="battery-trend">
-                <h4>Battery capacity · past 5 minutes</h4>
+                <h4>Battery capacity · past 48 hours</h4>
                 <p class="muted">State of charge</p>
                 <strong id="batteryCapacityLatest">-- %</strong>
                 <p id="batteryCapacityRange" class="muted"></p>
-                <svg id="batteryCapacityChart" class="battery-history-chart" viewBox="0 0 400 140" role="img" aria-label="Battery capacity over the last five minutes">
+                <svg id="batteryCapacityChart" class="battery-history-chart" viewBox="0 0 400 140" role="img" aria-label="Battery capacity over the last 48 hours">
                   <path id="batteryCapacityZero" class="battery-zero-line"></path>
                   <path id="batteryCapacityPath" class="metric-chart-line"></path>
                   <circle id="batteryCapacityDot" r="3" fill="currentColor" visibility="hidden"></circle>
                 </svg>
-                <div class="chart-time-labels"><span>−5 min</span><span>Now</span></div>
+                <div class="chart-time-labels"><span>−48 hours</span><span>Now</span></div>
                 <p id="batteryCapacityEmpty" class="muted">Waiting for readings</p>
               </section>
               <section class="battery-trend">
@@ -148,8 +148,21 @@
                 <div class="chart-time-labels"><span>−5 min</span><span>Now</span></div>
                 <p id="batteryCurrentEmpty" class="muted">Waiting for readings</p>
               </section>
+              <section class="battery-trend">
+                <h4>Battery power · past 5 minutes</h4>
+                <p class="muted">Negative = discharging · Positive = charging</p>
+                <strong id="batteryPowerLatest">-- W</strong>
+                <p id="batteryPowerRange" class="muted"></p>
+                <svg id="batteryPowerChart" class="battery-history-chart" viewBox="0 0 400 140" role="img" aria-label="Battery power over the last five minutes">
+                  <path id="batteryPowerZero" class="battery-zero-line"></path>
+                  <path id="batteryPowerPath" class="metric-chart-line"></path>
+                  <circle id="batteryPowerDot" r="3" fill="powerColor" visibility="hidden"></circle>
+                </svg>
+                <div class="chart-time-labels"><span>−5 min</span><span>Now</span></div>
+                <p id="batteryPowerEmpty" class="muted">Waiting for readings</p>
+              </section>
             </div>
-            <p class="muted">Charts collect readings while this page is open. Gaps indicate unavailable data.</p>
+            <p class="muted">Server history: capacity shows 48 hours at one-minute resolution; current and power show five minutes. Gaps indicate unavailable data.</p>
           </article>
 
           <article class="panel">
