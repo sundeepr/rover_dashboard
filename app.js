@@ -418,8 +418,8 @@ function renderGpsMap(gps, available) {
   const moved = available && !firstFix && gpsDistanceMeters(gpsMapPosition, gps) >= GPS_MAP_MIN_DISTANCE_M;
   if (!available || firstFix || (moved && now - gpsMapPosition.updatedAt >= GPS_MAP_MIN_INTERVAL_MS)) {
     const mapUrl = available
-      ? `https://www.google.com/maps?q=${encodeURIComponent(coordinates)}&z=18&output=embed`
-      : "https://www.google.com/maps?ll=0,0&z=2&output=embed";
+      ? `https://www.google.com/maps?q=${encodeURIComponent(coordinates)}&z=18&t=k&output=embed`
+      : "https://www.google.com/maps?ll=0,0&z=2&t=k&output=embed";
     if (frame.getAttribute("src") !== mapUrl) frame.src = mapUrl;
     gpsMapPosition.latitude = available ? gps.latitude : null;
     gpsMapPosition.longitude = available ? gps.longitude : null;
