@@ -98,10 +98,13 @@
           </article>
           </div>
 
-          <article class="panel span-2">
+          <article id="cameraPanel" class="panel camera-panel">
             <div class="section-header">
               <div><h3>Rover Cameras · WebRTC</h3><p id="cameraMessage">Loading cameras…</p></div>
-              <button id="reloadCameras" class="secondary-button" type="button">Reconnect video</button>
+              <div class="camera-actions">
+                <button id="expandCameras" class="secondary-button" type="button">Fullscreen both cameras</button>
+                <button id="reloadCameras" class="secondary-button" type="button">Reconnect video</button>
+              </div>
             </div>
             <div id="cameraGrid" class="camera-grid"></div>
           </article>

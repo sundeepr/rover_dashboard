@@ -525,6 +525,16 @@ function renderBatteryHistory(payload) {
   }
 }
 
+async function toggleCameraFullscreen() {
+  const panel = document.getElementById("cameraPanel");
+  try {
+    if (document.fullscreenElement === panel) await document.exitFullscreen();
+    else await panel.requestFullscreen();
+  } catch (error) {
+    setText("cameraMessage", "Fullscreen is unavailable in this browser. Both feeds remain visible below.");
+  }
+}
+
 // Camera players have their own lifecycle; telemetry renders never recreate them.
 async function loadCameras() {
   const button = document.getElementById("reloadCameras");
@@ -563,6 +573,11 @@ function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"}[c]));
 }
 // Dashboard startup
+document.getElementById("expandCameras").addEventListener("click", toggleCameraFullscreen);
+document.addEventListener("fullscreenchange", () => {
+  setText("expandCameras", document.fullscreenElement === document.getElementById("cameraPanel")
+    ? "Exit fullscreen" : "Fullscreen both cameras");
+});
 document.getElementById("reloadCameras").addEventListener("click", loadCameras);
 loadCameras();
 document.getElementById("roleBadge").textContent = "SensorHub";
