@@ -43,7 +43,7 @@ show the launch link in its UI.
 
 Stop any old standalone dashboard process holding the Bluetooth device. Configure
 hardware only in SensorHub. If its instance names differ from `battery`, `gps`,
-`jetson`, and `imu`, edit `/etc/rover-dashboard/dashboard.env` and restart:
+`jetson`, `imu`, and `controller`, edit `/etc/rover-dashboard/dashboard.env` and restart:
 
 ```sh
 sudo systemctl restart rover-dashboard
@@ -77,6 +77,25 @@ SENSORHUB_IMU_INSTANCE=imu
 Restart `rover-dashboard` after changes. SensorHub retains all serial/I2C access;
 the dashboard only subscribes to messages. Check the `gps` and `imu` objects in
 `/telemetry/api/telemetry` for availability and diagnostic reasons.
+
+## STM32 controller
+
+The read-only controller panel subscribes to `hub/sensors/controller/telemetry`
+and `hub/meta/drivers/controller/status`. It shows arming, autonomy, host command
+freshness, RC/host inputs, left/right motor commands, pump command, wheel base,
+board time and extra fields. A read-only joystick plots `rc.steer` horizontally
+and `rc.throttle` vertically on their −100 to +100 scales. The marker hides when
+RC readings are missing, stale or out of range; numeric readings remain beside it.
+Null values display `--`; zero commands stay `0`.
+Motor and pump values are reported commands, not measured motion or pump feedback.
+A stale host-command flag is shown separately from stale SensorHub telemetry.
+
+For a different instance ID, set `SENSORHUB_CONTROLLER_INSTANCE=controller` in
+`/etc/rover-dashboard/dashboard.env` and restart `rover-dashboard`. Existing
+installations default to `controller` without needing an environment-file edit.
+Controller data expires after two seconds and also requires a running heartbeat
+received within five seconds. The panel clears readings when unavailable and
+never sends commands to the controller.
 
 ## Acceptance on the rover
 

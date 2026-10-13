@@ -646,3 +646,20 @@ button:hover {
 .stat strong { overflow-wrap: anywhere; }
 .device-unavailable { color: var(--muted); }
 a.secondary-button { padding: 12px 16px; border-radius: 14px; text-decoration: none; }
+
+.controller-layout { display: grid; grid-template-columns: minmax(240px, 320px) minmax(0, 1fr); gap: 24px; align-items: start; }
+.controller-joystick { margin: 0; padding: 14px; border: 1px solid var(--panel-border); border-radius: 18px; background: rgba(5, 13, 25, 0.6); text-align: center; }
+.controller-joystick figcaption { font-weight: 600; }
+.controller-joystick svg { display: block; width: 100%; margin-top: 12px; }
+.controller-joystick svg text { fill: var(--muted); font-size: 11px; }
+.controller-joystick p { font-size: 0.8rem; }
+.joystick-base { fill: rgba(125, 249, 193, 0.04); stroke: var(--panel-border); }
+.joystick-guide { fill: none; stroke: var(--panel-border); }
+.joystick-axis { stroke: var(--muted); stroke-dasharray: 3 5; opacity: 0.6; }
+.joystick-stem { stroke: var(--accent); stroke-width: 4; opacity: 0.5; }
+.joystick-dot { fill: var(--accent); stroke: var(--text); stroke-width: 2; }
+.joystick-unavailable { opacity: 0.45; }
+@media (max-width: 740px) {
+  .controller-layout { grid-template-columns: 1fr; }
+  .controller-joystick { width: 100%; max-width: 320px; justify-self: center; }
+}

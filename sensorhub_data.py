@@ -30,7 +30,7 @@ class SensorHubTelemetry:
         self.lock = threading.Lock()
         self.thread = None
         self.instances = {key: os.environ.get(f'SENSORHUB_{key.upper()}_INSTANCE', key)
-                          for key in ('battery', 'gps', 'jetson', 'imu')}
+                          for key in ('battery', 'gps', 'jetson', 'imu', 'controller')}
 
     def start(self):
         with self.lock:
@@ -45,7 +45,7 @@ class SensorHubTelemetry:
                 from vendor.sensorhub_client import Hub
                 hub = Hub(connect_timeout=5)
                 topics = []
-                for key, stream in [('battery', 'telemetry'), ('gps', 'fix'), ('jetson', 'stats'), ('imu', 'data')]:
+                for key, stream in [('battery', 'telemetry'), ('gps', 'fix'), ('jetson', 'stats'), ('imu', 'data'), ('controller', 'telemetry')]:
                     name = self.instances[key]
                     topics.extend([f'hub/sensors/{name}/{stream}', f'hub/meta/drivers/{name}/status'])
                 hub.watch(*topics)
@@ -77,6 +77,7 @@ class SensorHubTelemetry:
         gps, gps_reason = self.read(cache, 'gps', 'fix', 5)
         jetson, jetson_reason = self.read(cache, 'jetson', 'stats', 3)
         imu, imu_reason = self.read(cache, 'imu', 'data', 2)
+        controller, controller_reason = self.read(cache, 'controller', 'telemetry', 2)
         status = {key: 'Unavailable' for key in ('cpuUsage', 'memoryUsage', 'cpuTemp', 'gpuUsage')}
         status.update(source='unavailable', updatedAt=None)
         jetson_payload = {'available': False, 'source': 'unavailable', 'details': [], 'error': jetson_reason}
@@ -147,14 +148,29 @@ class SensorHubTelemetry:
             valid = valid or reading['heading_deg'] is not None
             imu_payload.update(available=valid, source='sensorhub' if valid else 'unavailable',
                                reason=None if valid else 'No valid IMU readings', updatedAt=timestamp(imu), data=reading)
+        controller_payload = {'available': False, 'source': 'unavailable', 'reason': controller_reason,
+                              'updatedAt': None, 'data': None}
+        if controller:
+            data = controller.data
+            reading = {key: data.get(key) if isinstance(data.get(key), bool) else None
+                       for key in ('armed', 'autonomy', 'host_stale', 'wheel_base_matches')}
+            reading.update({key: number(data.get(key)) for key in ('board_t_ms', 'wheel_base_mm', 'pump_cmd')})
+            for key, fields in [('rc', ('throttle', 'steer')), ('host', ('throttle', 'radius_mm', 'aux')),
+                                ('cmd', ('left', 'right'))]:
+                values = data.get(key) if isinstance(data.get(key), dict) else {}
+                reading[key] = {field: number(values.get(field)) for field in fields}
+            reading['extra'] = data.get('extra') if isinstance(data.get('extra'), dict) else {}
+            controller_payload.update(available=True, source='sensorhub', reason=None,
+                                      updatedAt=timestamp(controller), data=reading)
         devices = []
         for key, message, reason in [('battery', battery, battery_reason), ('gps', gps, gps_reason),
-                                     ('jetson', jetson, jetson_reason), ('imu', imu, imu_reason)]:
+                                     ('jetson', jetson, jetson_reason), ('imu', imu, imu_reason),
+                                     ('controller', controller, controller_reason)]:
             devices.append({'name': self.instances[key], 'port': 'SensorHub',
                             'available': message is not None, 'status': 'online' if message else reason})
         return {'connection': {'available': connected, 'message': 'SensorHub connected' if connected else self.reason},
                 'status': status, 'battery': battery_payload, 'gps': gps_payload, 'jetson': jetson_payload,
-                'devices': devices, 'sources': {'devices': 'sensorhub' if any((battery, gps, jetson, imu)) else 'unavailable', 'odometry': 'unavailable'},
+                'devices': devices, 'sources': {'devices': 'sensorhub' if any((battery, gps, jetson, imu, controller)) else 'unavailable', 'odometry': 'unavailable'},
                 'odometry': {'x': '--', 'y': '--', 'heading': '--',
                              'speed': '--', 'wheelTicks': '--', 'frame': '--'},
-                'sensors': [], 'imu': imu_payload}
+                'sensors': [], 'imu': imu_payload, 'controller': controller_payload}

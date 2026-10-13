@@ -56,6 +56,7 @@ function renderTelemetry() {
   markSection("jetsonStatsGrid", state.telemetry.jetson?.available ? state.telemetry.jetson.source : "unavailable");
   renderGps(state.telemetry.gps);
   renderImu(state.telemetry.imu);
+  renderController(state.telemetry.controller);
 
   setText("cpuUsageValue", status.cpuUsage);
   setText("memoryUsageValue", status.memoryUsage);
@@ -366,6 +367,61 @@ function renderReadingGrid(id, items) {
     card.append(title, reading);
     return card;
   }));
+}
+
+function renderControllerJoystick(rc) {
+  const throttle = rc?.throttle;
+  const steer = rc?.steer;
+  const valid = Number.isFinite(throttle) && Number.isFinite(steer);
+  const inRange = valid && Math.abs(throttle) <= 100 && Math.abs(steer) <= 100;
+  const label = valid ? `Throttle ${throttle} · Steering ${steer}${inRange ? "" : " · Outside −100 to +100 range"}`
+    : "RC readings unavailable";
+  const chart = document.getElementById("controllerJoystick");
+  chart.setAttribute("aria-label", `RC joystick: ${label}`);
+  chart.classList.toggle("joystick-unavailable", !inRange);
+  document.getElementById("controllerJoystickPosition").setAttribute("visibility", inRange ? "visible" : "hidden");
+  setText("controllerJoystickReading", label);
+  if (!inRange) return;
+  const x = 140 + steer * 0.8;
+  const y = 140 - throttle * 0.8;
+  document.getElementById("controllerJoystickDot").setAttribute("cx", x);
+  document.getElementById("controllerJoystickDot").setAttribute("cy", y);
+  document.getElementById("controllerJoystickStem").setAttribute("x2", x);
+  document.getElementById("controllerJoystickStem").setAttribute("y2", y);
+}
+
+function renderController(controller) {
+  const available = controller?.available === true;
+  markSection("controllerGrid", available ? controller.source : "unavailable");
+  setText("controllerMessage", available ? `SensorHub controller · ${controller.updatedAt || "--"}`
+    : controller?.reason || "Waiting for SensorHub controller data");
+  const data = available ? controller.data || {} : {};
+  const flag = (value, yes, no) => value === true ? yes : value === false ? no : "--";
+  const value = (v, unit = "") => Number.isFinite(v) ? `${v}${unit}` : "--";
+  renderControllerJoystick(data.rc);
+  const warnings = [];
+  if (data.host_stale === true) warnings.push("Controller reports stale host commands.");
+  if (data.wheel_base_matches === false) warnings.push("Reported wheel base differs from SensorHub configuration.");
+  setText("controllerWarning", warnings.join(" "));
+  document.getElementById("controllerWarning").classList.toggle("hidden", warnings.length === 0);
+  const items = [
+    ["Arming", flag(data.armed, "Armed", "Disarmed")],
+    ["Autonomy", flag(data.autonomy, "Enabled", "Disabled")],
+    ["Host commands", flag(data.host_stale, "Stale", "Fresh")],
+    ["RC throttle", value(data.rc?.throttle)],
+    ["RC steering", value(data.rc?.steer)],
+    ["Host throttle", value(data.host?.throttle)],
+    ["Host turn radius", value(data.host?.radius_mm, " mm")],
+    ["Host auxiliary", value(data.host?.aux)],
+    ["Left motor command", value(data.cmd?.left)],
+    ["Right motor command", value(data.cmd?.right)],
+    ["Pump command", value(data.pump_cmd)],
+    ["Wheel base", value(data.wheel_base_mm, " mm")],
+    ["Wheel base configuration", flag(data.wheel_base_matches, "Matches", "Mismatch")],
+    ["Board time", value(data.board_t_ms, " ms")],
+    ...Object.entries(data.extra || {}).map(([key, v]) => [`Extra: ${key}`, v == null ? "--" : typeof v === "object" ? JSON.stringify(v) : String(v)]),
+  ];
+  renderReadingGrid("controllerGrid", items);
 }
 
 function renderImu(imu) {

@@ -105,6 +105,53 @@ class AdapterTests(unittest.TestCase):
                 self.assertFalse(payload['available'])
                 self.assertIsNotNone(payload['reason'])
 
+    def test_controller_sample_and_device(self):
+        sample = {'board_t_ms': 1039228, 'armed': True, 'autonomy': False, 'host_stale': True,
+                  'rc': {'throttle': 0, 'steer': 0},
+                  'host': {'throttle': None, 'radius_mm': None, 'aux': None},
+                  'wheel_base_mm': 650, 'cmd': {'left': 0, 'right': 0}, 'pump_cmd': 1,
+                  'extra': {}, 'wheel_base_matches': True}
+        self.adapter.hub.put('controller', 'telemetry', sample)
+        result = self.adapter.snapshot()
+        controller = result['controller']
+        self.assertTrue(controller['available'])
+        self.assertEqual(controller['data'], sample)
+        self.assertIsNotNone(controller['updatedAt'])
+        self.assertEqual(result['sources']['devices'], 'sensorhub')
+        self.assertTrue(next(d for d in result['devices'] if d['name'] == 'controller')['available'])
+
+    def test_controller_stale_degraded_and_recovery(self):
+        for age, state, heartbeat_age in [(2.1, 'running', 0), (0, 'degraded', 0), (0, 'running', 6)]:
+            self.adapter.hub.put('controller', 'telemetry', {'armed': True}, age, state, heartbeat_age)
+            result = self.adapter.snapshot()['controller']
+            self.assertFalse(result['available'])
+            self.assertIsNone(result['data'])
+            self.assertIsNotNone(result['reason'])
+        self.adapter.hub.put('controller', 'telemetry', {'armed': False, 'host_stale': False})
+        self.assertTrue(self.adapter.snapshot()['controller']['available'])
+        self.adapter.hub.connected = False
+        self.assertFalse(self.adapter.snapshot()['controller']['available'])
+
+    def test_controller_custom_subscription_and_unknown_values(self):
+        with patch.dict('os.environ', {'SENSORHUB_CONTROLLER_INSTANCE': 'stm32'}):
+            adapter = SensorHubTelemetry()
+        with patch('vendor.sensorhub_client.Hub') as constructor:
+            adapter.connect()
+            topics = constructor.return_value.watch.call_args.args
+            self.assertIn('hub/sensors/stm32/telemetry', topics)
+            self.assertIn('hub/meta/drivers/stm32/status', topics)
+        adapter.start = lambda: None
+        adapter.hub = Hub()
+        adapter.hub.put('stm32', 'telemetry', {'armed': 'false', 'pump_cmd': float('nan'),
+                                            'rc': None, 'cmd': {'left': -20, 'right': 20},
+                                            'extra': {'temperature': 32}})
+        data = adapter.snapshot()['controller']['data']
+        self.assertIsNone(data['armed'])
+        self.assertIsNone(data['pump_cmd'])
+        self.assertIsNone(data['rc']['throttle'])
+        self.assertEqual(data['cmd']['left'], -20)
+        self.assertEqual(data['extra']['temperature'], 32)
+
     def test_jetson_mapping_nulls(self):
         self.adapter.hub.put('jetson','stats',{'cpu':{'cores':[{'usage_pct':10},{'usage_pct':30}]},
              'memory':{'ram_used_mb':100,'ram_total_mb':400},'temps_c':{'cpu':None},'gpu':{'usage_pct':12}})

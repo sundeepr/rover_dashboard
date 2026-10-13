@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const elements = new Map();
 const document = {getElementById(id) {
   if (!elements.has(id)) elements.set(id, {textContent:'', classList:{toggle(){}},
-    getAttribute(k) {return this[k];}, removeAttribute(k) {delete this[k];}});
+    setAttribute(k,v) {this[k]=v;}, getAttribute(k) {return this[k];}, removeAttribute(k) {delete this[k];}});
   return elements.get(id);
 }};
 let now = 0;
@@ -64,3 +64,45 @@ gps(12.9003); // recovery renders immediately, without waiting 15 seconds
 assert.equal(reloads,5);
 assert.ok(vm.runInContext('gpsDistanceMeters({latitude:0,longitude:179.999999},{latitude:0,longitude:-179.999999})',context) < 1);
 console.log('GPS map jitter, cumulative movement, rate limit and recovery checks passed');
+
+vm.runInContext(`renderController({available:true,source:'sensorhub',updatedAt:'now',data:{
+  board_t_ms:1039228,armed:true,autonomy:false,host_stale:true,
+  rc:{throttle:0,steer:0},host:{throttle:null,radius_mm:null,aux:null},
+  wheel_base_mm:650,cmd:{left:0,right:0},pump_cmd:1,extra:{},wheel_base_matches:true
+}})`,context);
+assert.equal(vm.runInContext('grids.controllerGrid.Arming',context),'Armed');
+assert.equal(vm.runInContext('grids.controllerGrid.Autonomy',context),'Disabled');
+assert.equal(vm.runInContext('grids.controllerGrid["Left motor command"]',context),'0');
+assert.equal(vm.runInContext('grids.controllerGrid["Host throttle"]',context),'--');
+assert.equal(vm.runInContext('grids.controllerGrid["Pump command"]',context),'1');
+assert.match(elements.get('controllerWarning').textContent,/stale host commands/);
+vm.runInContext(`renderController({available:true,source:'sensorhub',data:{armed:false,host_stale:false,wheel_base_matches:false}})`,context);
+assert.equal(vm.runInContext('grids.controllerGrid.Arming',context),'Disarmed');
+assert.equal(vm.runInContext('grids.controllerGrid["Host commands"]',context),'Fresh');
+assert.match(elements.get('controllerWarning').textContent,/wheel base differs/);
+vm.runInContext(`renderController({available:false,reason:'Missing or stale telemetry'})`,context);
+assert.equal(vm.runInContext('grids.controllerGrid.Arming',context),'--');
+assert.equal(vm.runInContext('sources.controllerGrid',context),'unavailable');
+assert.equal(elements.get('controllerWarning').textContent,'');
+assert.match(elements.get('controllerMessage').textContent,/stale telemetry/);
+console.log('STM32 controller rendering checks passed');
+
+vm.runInContext('renderControllerJoystick({throttle:0,steer:0})',context);
+assert.equal(elements.get('controllerJoystickDot').cx,140);
+assert.equal(elements.get('controllerJoystickDot').cy,140);
+assert.equal(elements.get('controllerJoystickPosition').visibility,'visible');
+vm.runInContext('renderControllerJoystick({throttle:100,steer:-100})',context);
+assert.equal(elements.get('controllerJoystickDot').cx,60);
+assert.equal(elements.get('controllerJoystickDot').cy,60);
+vm.runInContext('renderControllerJoystick({throttle:-100,steer:100})',context);
+assert.equal(elements.get('controllerJoystickDot').cx,220);
+assert.equal(elements.get('controllerJoystickDot').cy,220);
+vm.runInContext('renderController({available:false})',context);
+assert.equal(elements.get('controllerJoystickPosition').visibility,'hidden');
+assert.match(elements.get('controllerJoystickReading').textContent,/unavailable/);
+vm.runInContext('renderControllerJoystick({throttle:null,steer:0})',context);
+assert.equal(elements.get('controllerJoystickPosition').visibility,'hidden');
+vm.runInContext('renderControllerJoystick({throttle:101,steer:0})',context);
+assert.equal(elements.get('controllerJoystickPosition').visibility,'hidden');
+assert.match(elements.get('controllerJoystickReading').textContent,/Outside/);
+console.log('RC joystick neutral, direction, missing and out-of-range checks passed');

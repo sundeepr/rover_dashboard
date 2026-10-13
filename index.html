@@ -165,6 +165,38 @@
             <p class="muted">Server history: capacity shows 48 hours at one-minute resolution; current and power show five minutes. Gaps indicate unavailable data.</p>
           </article>
 
+          <article class="panel span-2">
+            <div class="section-header">
+              <div>
+                <h3>STM32 Rover Controller</h3>
+                <p id="controllerMessage">Waiting for SensorHub controller data.</p>
+              </div>
+            </div>
+            <p id="controllerWarning" class="battery-alert warning hidden" role="status"></p>
+            <div class="controller-layout">
+              <figure class="controller-joystick">
+                <figcaption>RC joystick <span class="muted">· Read-only</span></figcaption>
+                <svg id="controllerJoystick" viewBox="0 0 280 280" role="img" aria-label="RC joystick unavailable">
+                  <rect x="40" y="40" width="200" height="200" rx="20" class="joystick-base"></rect>
+                  <circle cx="140" cy="140" r="80" class="joystick-guide"></circle>
+                  <circle cx="140" cy="140" r="40" class="joystick-guide"></circle>
+                  <path d="M 40 140 H 240 M 140 40 V 240" class="joystick-axis"></path>
+                  <text x="140" y="23" text-anchor="middle">Throttle +100</text>
+                  <text x="140" y="266" text-anchor="middle">Throttle −100</text>
+                  <text x="35" y="145" text-anchor="end">−100</text>
+                  <text x="245" y="145">+100</text>
+                  <g id="controllerJoystickPosition" visibility="hidden">
+                    <line id="controllerJoystickStem" x1="140" y1="140" x2="140" y2="140" class="joystick-stem"></line>
+                    <circle id="controllerJoystickDot" cx="140" cy="140" r="10" class="joystick-dot"></circle>
+                  </g>
+                </svg>
+                <p class="muted">Horizontal: steering · Vertical: throttle</p>
+                <p id="controllerJoystickReading">Waiting for RC readings</p>
+              </figure>
+              <div id="controllerGrid" class="stats-grid compact"></div>
+            </div>
+          </article>
+
           <article class="panel">
             <div class="section-header">
               <div>
