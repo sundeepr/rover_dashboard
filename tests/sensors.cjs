@@ -9,7 +9,7 @@ const document = {getElementById(id) {
 }};
 let now = 0;
 const context = vm.createContext({document, URL, performance:{now: () => now}, window:{location:{origin:'http://rover'}}});
-vm.runInContext(fs.readFileSync('app.js','utf8').split('document.getElementById("roleBadge")')[0], context);
+vm.runInContext(fs.readFileSync('app.js','utf8').split('// Dashboard startup')[0], context);
 vm.runInContext(`
 const grids = {}, sources = {};
 renderReadingGrid = (id, items) => {grids[id] = Object.fromEntries(items);};

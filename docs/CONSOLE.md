@@ -136,3 +136,55 @@ The supported single-file SensorHub client was copied from commit `de183ba` into
 `vendor/sensorhub_client.py` as directed by SensorHub's integration guide. No changes
 were made to SensorHub itself. Request handlers read its cache without waiting for
 a hardware message. A background connector retries when the bus is unavailable.
+
+## View-only WebRTC prototype
+
+The Cameras panel embeds MediaMTX WebRTC players. Telemetry updates never reload
+those players. Use **Reconnect video** to restart them manually. This prototype
+has no driving controls and does not change SensorHub.
+
+`sudo ./install.sh` also installs checksum-pinned MediaMTX v1.21.2 for Linux
+arm64/amd64 and enables `rover-dashboard-video.service`. It preserves the local
+camera configuration. On first installation, it imports `cameras.local.json`
+from the checkout if present; otherwise it installs the two supplied test cameras
+from `deploy/cameras.default.json`, including their test credentials. The local
+override file is ignored by Git. Existing installed camera settings are preserved. To configure a fresh Jetson checkout, copy
+`deploy/cameras.example.json` to `/etc/rover-dashboard/cameras.json`, replace the
+example with your streams, and add additional entries with unique IDs:
+
+```json
+[
+  {"id": "camera1", "name": "Camera 1", "source": "rtsp://USER:PASSWORD@CAMERA_1:554/video/live?channel=1&subtype=1"},
+  {"id": "camera2", "name": "Camera 2", "source": "rtsp://USER:PASSWORD@CAMERA_2:554/video/live?channel=1&subtype=1"}
+]
+```
+
+```sh
+sudo chown root:rover-dashboard /etc/rover-dashboard/cameras.json
+sudo chmod 640 /etc/rover-dashboard/cameras.json
+sudo systemctl restart rover-dashboard-video
+```
+
+Then reload the dashboard or choose **Reconnect video**. Camera names and player
+paths are returned by `/telemetry/api/cameras`; camera URLs/credentials are not.
+The relay connects to RTSP sources only while viewers are connected. It does not
+transcode: use camera **H.264 without B-frames** for broad WebRTC compatibility.
+H.265 and some H.264 profiles may not play in the browser. Actual camera codecs,
+latency and Jetson playback must be verified on the rover.
+
+WebRTC signaling and player assets use the existing authenticated
+`/telemetry/video/<id>/` route via the dashboard. Media goes directly to the
+Jetson on **UDP 8189**; allow that port from the viewing LAN. The relay's HTTP
+listener is loopback-only on TCP 9001. No additional Caddy route is required.
+If ICE cannot find the rover, add `VIDEO_ADDITIONAL_HOSTS=<rover-LAN-IP>` to
+`/etc/rover-dashboard/dashboard.env` and restart the video service. This prototype
+assumes LAN access; Internet/NAT deployments may need TURN. A player can load
+successfully even if the media port is blocked.
+
+For local development, set `DASHBOARD_CAMERAS_FILE` to your local JSON file when
+running the dashboard. Generate relay config with `python video.py --config
+cameras.local.json --output /tmp/mediamtx.yml`, then run MediaMTX with that file.
+Keep generated config private because it contains camera credentials.
+
+References: [MediaMTX browser playback](https://mediamtx.org/docs/read/web-browsers)
+and [WebRTC codec/network requirements](https://mediamtx.org/docs/features/webrtc-specific-features).

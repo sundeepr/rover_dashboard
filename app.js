@@ -525,9 +525,46 @@ function renderBatteryHistory(payload) {
   }
 }
 
+// Camera players have their own lifecycle; telemetry renders never recreate them.
+async function loadCameras() {
+  const button = document.getElementById("reloadCameras");
+  button.disabled = true;
+  const grid = document.getElementById("cameraGrid");
+  grid.replaceChildren();
+  setText("cameraMessage", "Connecting to video relay…");
+  try {
+    const response = await fetch(`${state.baseUrl}/api/cameras`);
+    if (!response.ok) throw new Error("Camera configuration unavailable");
+    const payload = await response.json();
+    for (const camera of payload.cameras || []) {
+      if (!/^[a-z][a-z0-9_-]{0,31}$/.test(camera.id)) continue;
+      const card = document.createElement("section");
+      const title = document.createElement("h4");
+      title.textContent = camera.name;
+      const frame = document.createElement("iframe");
+      frame.title = `${camera.name} · WebRTC video`;
+      frame.src = `${state.baseUrl}/video/${camera.id}/?muted=true&autoplay=true&controls=true`;
+      frame.allow = "autoplay; fullscreen";
+      frame.allowFullscreen = true;
+      card.append(title, frame);
+      grid.append(card);
+    }
+    setText("cameraMessage", grid.children.length
+      ? "View-only · Each player shows connection errors and retries automatically."
+      : "No cameras configured. Add streams to /etc/rover-dashboard/cameras.json.");
+  } catch (error) {
+    setText("cameraMessage", "Camera configuration unavailable. Use Reconnect video to retry.");
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"}[c]));
 }
+// Dashboard startup
+document.getElementById("reloadCameras").addEventListener("click", loadCameras);
+loadCameras();
 document.getElementById("roleBadge").textContent = "SensorHub";
 renderTelemetry();
 refreshTelemetry();

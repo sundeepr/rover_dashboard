@@ -7,9 +7,11 @@ from flask import Flask, abort, jsonify, request, send_from_directory
 from flask_sock import Sock
 from sensorhub_data import SensorHubTelemetry
 from telemetry_history import TelemetryHistory
+from video import video
 
 DIST = Path(__file__).resolve().parent / 'dist'
 app = Flask(__name__, static_folder=None)
+app.register_blueprint(video)
 sock = Sock(app)
 telemetry = TelemetryHistory(SensorHubTelemetry())
 telemetry.start()
@@ -48,7 +50,7 @@ sock.route('/ws')(live)
 @app.get('/')
 @app.get('/<path:path>')
 def frontend(path=''):
-    if path == 'api' or path.startswith('api/') or path == 'ws' or path.startswith('ws/'):
+    if path == 'video' or path.startswith('video/') or path == 'api' or path.startswith('api/') or path == 'ws' or path.startswith('ws/'):
         abort(404)
     if path in ('app.js', 'styles.css'):
         return send_from_directory(DIST, path)

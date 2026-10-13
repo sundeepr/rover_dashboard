@@ -1,0 +1,24 @@
+[Unit]
+Description=Rover Dashboard view-only WebRTC relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=rover-dashboard
+Group=rover-dashboard
+EnvironmentFile=/etc/rover-dashboard/dashboard.env
+RuntimeDirectory=rover-dashboard-video
+RuntimeDirectoryMode=0700
+ExecStartPre=/opt/rover-dashboard/.venv/bin/python /opt/rover-dashboard/video.py --output /run/rover-dashboard-video/mediamtx.yml
+ExecStart=/opt/rover-dashboard/bin/mediamtx /run/rover-dashboard-video/mediamtx.yml
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateDevices=true
+
+[Install]
+WantedBy=multi-user.target

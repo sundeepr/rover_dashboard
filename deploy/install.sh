@@ -68,7 +68,7 @@ getent passwd rover-dashboard >/dev/null || useradd --system --user-group --no-c
 install -d -m 0755 "$APP" "$APP/vendor" "$APP/dist" "$APP/third_party" /etc/rover-dashboard /etc/rover-console/apps
 systemctl stop rover-dashboard.service 2>/dev/null || true
 DASHBOARD_STOPPED=true
-for file in dashboard_app.py telemetry_history.py sensorhub_data.py bms_data.py requirements.txt; do
+for file in dashboard_app.py video.py telemetry_history.py sensorhub_data.py bms_data.py requirements.txt; do
     install -m 0644 "$SOURCE/$file" "$APP/$file"
 done
 install -m 0644 "$SOURCE/vendor/"*.py "$APP/vendor/"
@@ -79,6 +79,7 @@ python3 -m venv "$APP/.venv"
 if [[ ! -f /etc/rover-dashboard/dashboard.env ]]; then
     install -m 0644 "$SOURCE/deploy/dashboard.env" /etc/rover-dashboard/dashboard.env
 fi
+bash "$SOURCE/deploy/install_video.sh" "$SOURCE"
 chown -R root:root "$APP"
 chmod -R go-w "$APP"
 install -m 0644 "$SOURCE/deploy/rover-dashboard.service" /etc/systemd/system/rover-dashboard.service

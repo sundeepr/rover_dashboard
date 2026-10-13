@@ -8,7 +8,7 @@ const document = {getElementById(id) {
   return elements.get(id);
 }};
 const context = vm.createContext({document, URL, window: {location: {origin: 'http://rover'}}});
-vm.runInContext(fs.readFileSync('app.js','utf8').split('document.getElementById("roleBadge")')[0], context);
+vm.runInContext(fs.readFileSync('app.js','utf8').split('// Dashboard startup')[0], context);
 vm.runInContext(`
 state.telemetry.history = {now: 300000, windowMs: 300000, samples: [
  {time: 0, battery: {Capacity:74,Current:-50,Power:-22}},

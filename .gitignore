@@ -5,3 +5,6 @@ rdash/
 dist/
 .venv/
 .pytest_cache/
+
+# Local camera credentials
+cameras.local.json
